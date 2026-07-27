@@ -1,0 +1,16 @@
+<?php
+header('Content-Type: application/json');
+require_once __DIR__ . '/../includes/auth.php';
+if (!isLoggedIn()) { http_response_code(401); echo json_encode(['error'=>'Unauthorized']); exit; }
+
+$method = $_SERVER['REQUEST_METHOD'];
+if ($method === 'GET') {
+    echo json_encode(['success'=>true,'data'=>settings()]);
+} elseif ($method === 'POST') {
+    $d = json_decode(file_get_contents('php://input'),true);
+    $fields = ['business_name','business_phone','business_email','business_address','slot_interval_minutes','booking_notice_hours','sms_sender','timezone','reminder_hours_before','twilio_account_sid','twilio_auth_token','twilio_from_number'];
+    $sets=[]; $params=[];
+    foreach($fields as $f) { if(isset($d[$f])) { $sets[]="$f=?"; $params[]=$d[$f]; } }
+    if($sets) { query('UPDATE business_settings SET '.implode(',',$sets).' WHERE id=1',$params); }
+    echo json_encode(['success'=>true]);
+}

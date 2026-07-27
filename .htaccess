@@ -1,0 +1,32 @@
+# ============================================================
+#  Diamond Nail & Spa — Apache / XAMPP .htaccess
+#  Place the entire diamond-nail-spa/ folder inside:
+#    Windows: D:\xampp\htdocs\diamond-nail-spa\
+#    macOS:   /Applications/XAMPP/htdocs/diamond-nail-spa/
+#    Linux:   /opt/lampp/htdocs/diamond-nail-spa/
+# ============================================================
+
+Options -Indexes
+DirectoryIndex index.php
+
+# ── Enable mod_rewrite ───────────────────────────────────────
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /diamond-nail-spa/
+
+    # Block direct access to sensitive folders
+    RewriteRule ^(includes|config|cron)(/|$) - [F,L]
+
+    # Admin shortcuts
+    RewriteRule ^admin/?$        admin/index.php [L]
+    RewriteRule ^admin/login/?$  admin/login.php [L]
+    RewriteRule ^admin/logout/?$ admin/logout.php [L]
+</IfModule>
+
+# ── PHP settings (XAMPP) ─────────────────────────────────────
+<IfModule mod_php.c>
+    php_flag display_errors Off
+    php_value upload_max_filesize 8M
+    php_value post_max_size 8M
+    php_value session.cookie_httponly 1
+</IfModule>
