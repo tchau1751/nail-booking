@@ -28,8 +28,13 @@ try {
 
 <div class="panel">
   <div class="section-header">
-    <h2 class="section-title">Stamp Cards</h2>
-    <p style="font-size:13px;color:rgba(58,42,36,.6);margin:0">Manage client loyalty stamps (10 stamps = free service)</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <h2 class="section-title">Stamp Cards</h2>
+        <p style="font-size:13px;color:rgba(58,42,36,.6);margin:0">Manage client loyalty stamps (10 stamps = free service)</p>
+      </div>
+      <a href="<?= BASE_PATH ?>/admin/" style="padding:8px 16px;background:#c9a87d;color:white;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;">→ Manage Clients</a>
+    </div>
   </div>
 
   <?php if ($error): ?>
