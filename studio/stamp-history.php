@@ -54,13 +54,14 @@ try {
     <p style="font-size:13px;color:rgba(58,42,36,.6);margin:0">Track all stamp card activity and rewards</p>
   </div>
 
-  <?php if ($error): ?>
-    <div style="padding:16px;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;margin:16px 0;">
-      <strong>Error:</strong> <?= e($error) ?>
-    </div>
-  <?php endif; ?>
+  <div class="panel-body">
+    <?php if ($error): ?>
+      <div style="padding:16px;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;margin-bottom:16px;">
+        <strong>Error:</strong> <?= e($error) ?>
+      </div>
+    <?php endif; ?>
 
-  <div style="margin-bottom:28px;">
+    <div style="margin-bottom:28px;">
     <h3 style="font-size:14px;margin-bottom:12px;font-weight:600;">🎁 Recent Rewards (Last 7 Days)</h3>
     <?php if (empty($rewards)): ?>
       <p style="text-align:center;color:#999;padding:20px;">No recent check-ins</p>
@@ -116,6 +117,7 @@ try {
         </tbody>
       </table>
     </div>
+  </div>
   </div>
 </div>
 

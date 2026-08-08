@@ -21,9 +21,9 @@ define('BASE_PATH',  '/' . SUBFOLDER);   // used in HTML href/src
 // ── Twilio SMS ────────────────────────────────────────────────
 // Fill in after signing up at https://twilio.com/console
 // OR enter these in Admin Dashboard → Settings
-define('TWILIO_ACCOUNT_SID', '');   // ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-define('TWILIO_AUTH_TOKEN',  '');   // your auth token
-define('TWILIO_FROM_NUMBER', '');   // E.164 format: +12025551234
+define('TWILIO_ACCOUNT_SID', 'AC3c74634420b61c96ed710cf81a98bc13');
+define('TWILIO_AUTH_TOKEN',  'a55bb1e51c386caf4be796a2be2d210a');
+define('TWILIO_FROM_NUMBER', '+18559381372');   // E.164 format: +12025551234
 
 // ── General ──────────────────────────────────────────────────
 define('APP_TIMEZONE',   'America/New_York');

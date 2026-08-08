@@ -70,7 +70,7 @@ body{font-family:var(--font-body);background:var(--ivory);color:var(--espresso);
 .admin-badge{background:var(--blush);color:var(--plum);padding:4px 10px;border-radius:50px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
 
 /* MAIN */
-.main-content{padding:28px;overflow-y:auto;background:var(--ivory)}
+.main-content{padding:12px 28px 28px;overflow-y:auto !important;height:calc(100vh - 64px) !important;background:var(--ivory)}
 
 /* ── CARDS ──────────────────────────────────────────────────── */
 .card{background:var(--white);border:1px solid var(--taupe);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow-card)}
@@ -82,7 +82,7 @@ body{font-family:var(--font-body);background:var(--ivory);color:var(--espresso);
 .stat-accent{width:32px;height:4px;border-radius:4px;background:linear-gradient(135deg,var(--rosegold),var(--champagne));margin-bottom:12px}
 
 /* ── TABLE ──────────────────────────────────────────────────── */
-.table-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--taupe)}
+.table-wrap{overflow-x:auto;overflow-y:auto;border-radius:var(--radius);border:1px solid var(--taupe);max-height:calc(100vh - 280px)}
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead th{background:var(--pearl);padding:11px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:rgba(58,42,36,.6);border-bottom:1px solid var(--taupe);white-space:nowrap}
 tbody td{padding:13px 14px;border-bottom:1px solid rgba(217,199,184,.35);vertical-align:middle}
@@ -110,12 +110,15 @@ tbody tr:hover{background:var(--pearl)}
 .form-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:24px;padding-top:16px;border-top:1px solid var(--taupe)}
 
 /* ── CALENDAR ────────────────────────────────────────────────── */
-.fc{font-family:var(--font-body)!important;font-size:13px}
-.fc .fc-toolbar-title{font-family:var(--font-display);font-size:18px}
-.fc .fc-button-primary{background:var(--espresso)!important;border-color:var(--espresso)!important;border-radius:8px!important}
+.fc{font-family:var(--font-body)!important;font-size:13px;height:700px!important}
+.fc .fc-toolbar{padding:0!important;margin-bottom:0!important;gap:4px!important}
+.fc .fc-toolbar-title{font-family:var(--font-display);font-size:16px}
+.fc .fc-button-primary{background:var(--espresso)!important;border-color:var(--espresso)!important;border-radius:6px!important;padding:3px 8px!important;font-size:11px!important;height:28px!important}
 .fc .fc-button-primary:hover{background:var(--plum)!important;border-color:var(--plum)!important}
 .fc .fc-event{border-radius:6px!important;font-size:12px!important;cursor:pointer}
 .fc .fc-col-header-cell{background:var(--pearl)}
+.fc .fc-daygrid{margin-top:4px!important}
+.fc .fc-daygrid-body{height:600px!important}
 
 /* ── MISC ────────────────────────────────────────────────────── */
 .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}

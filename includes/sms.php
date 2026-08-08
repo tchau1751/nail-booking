@@ -69,7 +69,7 @@ function normalizePhone(string $phone): string {
 function smsConfirmation(array $appt, array $service, string $businessName): string {
     $date = date('l, F j', strtotime($appt['appointment_date']));
     $time = date('g:i A', strtotime($appt['start_time']));
-    return "Hi {$appt['full_name']}! ✨ Your {$service['name']} appointment at {$businessName} is confirmed for {$date} at {$time}. We can't wait to see you! Reply CANCEL to cancel.";
+    return "Thank you for your booking at {$businessName}, {$appt['full_name']}! ✨ Your {$service['name']} appointment is confirmed for {$date} at {$time}. We can't wait to see you! Reply CANCEL to cancel.";
 }
 
 function smsReminder(array $appt, array $service, string $businessName): string {
@@ -80,6 +80,11 @@ function smsReminder(array $appt, array $service, string $businessName): string 
 
 function smsCancellation(array $appt, string $businessName): string {
     return "Hi {$appt['full_name']}, your appointment at {$businessName} has been cancelled. Book again anytime at our website. Thank you!";
+}
+
+function smsPromo(array $appt, string $businessName, string $offer = ''): string {
+    $offer = $offer !== '' ? $offer : '20% off your next visit this week only';
+    return "Hi {$appt['full_name']}! 🎉 {$businessName} has a treat for you: {$offer}. Book now — we'd love to pamper you again! Reply STOP to opt out.";
 }
 
 function smsStatusUpdate(array $appt, array $service, string $businessName, string $newStatus): string {

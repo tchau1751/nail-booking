@@ -75,6 +75,7 @@ if ($method === 'GET') {
     $msg = match($type) {
         'reminder'     => smsReminder($appt, $service, $biz),
         'confirmation' => smsConfirmation($appt, $service, $biz),
+        'promo'        => smsPromo($appt, $biz, $raw['offer'] ?? ''),
         default        => $raw['message'] ?? 'Message from ' . $biz,
     };
 

@@ -11,7 +11,17 @@ $admin = currentAdmin();
 <title>Dashboard — Diamond Nail &amp; Spa</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/main.min.css" rel="stylesheet">
-<link rel="stylesheet" href="<?= BASE_PATH ?>/assets/css/admin.css">
+<link rel="stylesheet" href="<?= BASE_PATH ?>/assets/css/admin.css?t=<?= time() ?>">
+<style>
+html, body { overflow: auto !important; }
+.main-content { padding: 12px 28px 28px !important; display: block !important; }
+.fc { height: auto !important; display: block !important; }
+.fc .fc-toolbar { padding: 8px 0 !important; margin-bottom: 6px !important; background: #f5f5f5 !important; border-radius: 12px !important; }
+.fc .fc-toolbar-title { font-size: 16px !important; }
+.fc .fc-button { padding: 4px 12px !important; font-size: 12px !important; }
+.fc .fc-col-header-cell { padding: 6px 2px !important; font-size: 12px !important; }
+.fc .fc-daygrid-body { height: auto !important; }
+</style>
 </head>
 <body class="dashboard">
 
@@ -24,7 +34,7 @@ $admin = currentAdmin();
   <nav class="sidebar-nav">
     <a href="#" data-page="overview"      class="nav-item active"><span class="nav-icon">📊</span> Overview</a>
     <a href="#" data-page="calendar"      class="nav-item"><span class="nav-icon">📅</span> Calendar</a>
-    <a href="#" data-page="appointments"  class="nav-item"><span class="nav-icon">📋</span> Appointments</a>
+    <a href="#" data-page="appointments"  class="nav-item"><span class="nav-icon">📋</span> All Bookings</a>
     <a href="#" data-page="technicians"   class="nav-item"><span class="nav-icon">💆</span> Technicians</a>
     <a href="#" data-page="services"      class="nav-item"><span class="nav-icon">✨</span> Services</a>
     <a href="#" data-page="hours"         class="nav-item"><span class="nav-icon">🕐</span> Business Hours</a>

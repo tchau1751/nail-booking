@@ -60,14 +60,15 @@ try {
     <p style="font-size:13px;color:rgba(58,42,36,.6);margin:0">Real-time loyalty stamp tracking</p>
   </div>
 
-  <?php if ($error): ?>
-    <div style="padding:16px;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;margin:16px 0;">
-      <strong>Error:</strong> <?= e($error) ?>
-    </div>
-  <?php endif; ?>
+  <div class="panel-body">
+    <?php if ($error): ?>
+      <div style="padding:16px;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;margin-bottom:16px;">
+        <strong>Error:</strong> <?= e($error) ?>
+      </div>
+    <?php endif; ?>
 
-  <!-- Stats Cards -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:28px;">
+    <!-- Stats Cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:28px;">
     <div style="background:#f0f0f0;padding:20px;border-radius:12px;text-align:center;">
       <div style="font-size:32px;font-weight:700;color:#1ba0c8;"><?= (int)$stats['total_clients'] ?></div>
       <div style="font-size:12px;color:#666;margin-top:4px;">Total Clients</div>
@@ -144,6 +145,7 @@ try {
         </tbody>
       </table>
     </div>
+  </div>
   </div>
 </div>
 

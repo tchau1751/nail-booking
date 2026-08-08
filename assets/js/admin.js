@@ -179,6 +179,7 @@ async function pageAppointments(statusFilter = '', search = '', page = 1) {
           <select class="status-select" style="padding:4px 8px;border:1.5px solid var(--taupe);border-radius:8px;font-size:12px" data-id="${a.id}" onchange="updateStatus(this)">
             ${['pending','confirmed','cancelled','completed'].map(s => `<option value="${s}"${a.status===s?' selected':''}>${s}</option>`).join('')}
           </select>
+          <button class="btn btn-sm btn-secondary" onclick="sendSMSBtn(${a.id},'confirmation')">✓ Confirm</button>
           <button class="btn btn-sm btn-secondary" onclick="sendSMSBtn(${a.id},'reminder')">💬 Remind</button>
           <button class="btn btn-sm btn-secondary" onclick="apptDetail(${a.id})">Detail</button>
         </div>
