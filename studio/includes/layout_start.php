@@ -54,6 +54,7 @@ table tr:hover { background: #f9f9f9; }
     <div class="sidebar-brand">💎 Studio</div>
     <nav class="sidebar-nav">
       <a href="<?= BASE_PATH ?>/studio/" class="nav-item <?= $activeNav === 'bookings' ? 'active' : '' ?>"><span>📋</span> Bookings</a>
+      <a href="<?= BASE_PATH ?>/studio/clients.php" class="nav-item <?= $activeNav === 'clients' ? 'active' : '' ?>"><span>👥</span> Clients</a>
       <a href="<?= BASE_PATH ?>/studio/stamp-cards.php" class="nav-item <?= $activeNav === 'stamp-cards' ? 'active' : '' ?>"><span>🎫</span> Stamp Cards</a>
       <a href="<?= BASE_PATH ?>/studio/stamp-monitor.php" class="nav-item <?= $activeNav === 'stamp-monitor' ? 'active' : '' ?>"><span>📊</span> Monitor</a>
       <a href="<?= BASE_PATH ?>/studio/stamp-history.php" class="nav-item <?= $activeNav === 'stamp-history' ? 'active' : '' ?>"><span>📝</span> History</a>
