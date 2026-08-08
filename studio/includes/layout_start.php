@@ -28,8 +28,8 @@ body { font-family: Manrope, sans-serif; background: #f9f9f9; color: #333; }
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .topbar { background: white; border-bottom: 1px solid #eee; padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; }
 .page-title { font-size: 20px; font-weight: 700; }
-.main-content { flex: 1; overflow-y: auto; padding: 28px 28px; }
-.panel { background: white; border-radius: 12px; padding: 0; }
+.main-content { flex: 1; overflow-y: auto; padding: 28px 28px; background: #f9f9f9; }
+.panel { background: white; border-radius: 12px; padding: 0; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
 .section-header { padding: 20px; border-bottom: 1px solid #eee; }
 .section-title { font-size: 18px; font-weight: 700; margin: 0 0 6px 0; }
 .panel-body { padding: 20px; }
