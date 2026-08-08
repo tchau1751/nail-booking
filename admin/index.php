@@ -53,6 +53,7 @@ html, body { overflow: auto !important; }
   <button class="menu-toggle" id="menuToggle">☰</button>
   <h2 class="page-title" id="pageTitle">Overview</h2>
   <div class="topbar-right">
+    <a href="<?= BASE_PATH ?>/studio/stamp-cards.php" class="btn btn-primary btn-sm" style="text-decoration:none;background:#c9a87d;margin-right:8px;">🎫 Stamp Cards</a>
     <a href="<?= BASE_PATH ?>/" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none">🌐 View site</a>
   </div>
 </header>
