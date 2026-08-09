@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes/layout_start.php';
 
 $pdo = get_db();
 $search = trim((string) ($_GET['q'] ?? ''));
+$error = '';
 
 $where = '';
 $params = [];
@@ -14,20 +15,25 @@ if ($search !== '') {
     $params['q'] = '%' . $search . '%';
 }
 
-$stmt = $pdo->prepare("
-  SELECT c.*,
-         COUNT(b.id) as total_bookings,
-         COALESCE(c.stamp_count, 0) as stamps,
-         MAX(b.appointment_date) as last_visit
-  FROM clients c
-  LEFT JOIN bookings b ON c.id = b.client_id
-  $where
-  GROUP BY c.id
-  ORDER BY c.full_name ASC
-  LIMIT 200
-");
-$stmt->execute($params);
-$clients = $stmt->fetchAll();
+try {
+  $stmt = $pdo->prepare("
+    SELECT c.id, c.full_name, c.phone, c.email, c.stamp_count,
+           COUNT(b.id) as total_bookings,
+           COALESCE(c.stamp_count, 0) as stamps,
+           MAX(b.appointment_date) as last_visit
+    FROM clients c
+    LEFT JOIN bookings b ON c.id = b.client_id
+    $where
+    GROUP BY c.id, c.full_name, c.phone, c.email, c.stamp_count
+    ORDER BY c.full_name ASC
+    LIMIT 200
+  ");
+  $stmt->execute($params);
+  $clients = $stmt->fetchAll();
+} catch (Exception $e) {
+  $error = 'Error loading clients: ' . $e->getMessage();
+  $clients = [];
+}
 ?>
 
 <div class="panel">
@@ -42,6 +48,11 @@ $clients = $stmt->fetchAll();
   </div>
 
   <div class="panel-body no-pad">
+    <?php if ($error): ?>
+      <div style="padding:16px;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;margin:16px;">
+        <strong>Error:</strong> <?= e($error) ?>
+      </div>
+    <?php endif; ?>
     <div style="padding:16px;border-bottom:1px solid #eee;">
       <input type="text" placeholder="Search name, phone, email..." style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;width:100%;max-width:400px;font-size:13px;">
     </div>
