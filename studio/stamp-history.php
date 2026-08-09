@@ -121,4 +121,12 @@ try {
   </div>
 </div>
 
+<!-- BOTTOM NAVIGATION -->
+<div style="margin-top:28px;padding:20px;background:#f9f9f9;border-radius:12px;display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:12px;">
+  <a href="<?= BASE_PATH ?>/studio/" style="padding:12px;background:#1ba0c8;color:white;text-align:center;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">📋 Bookings</a>
+  <a href="<?= BASE_PATH ?>/studio/clients.php" style="padding:12px;background:#6c757d;color:white;text-align:center;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">👥 Clients</a>
+  <a href="<?= BASE_PATH ?>/studio/stamp-cards.php" style="padding:12px;background:#28a745;color:white;text-align:center;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">🎫 Stamp Cards</a>
+  <a href="<?= BASE_PATH ?>/studio/stamp-monitor.php" style="padding:12px;background:#ffc107;color:black;text-align:center;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">📊 Monitor</a>
+</div>
+
 <?php require_once __DIR__ . '/includes/layout_end.php'; ?>
