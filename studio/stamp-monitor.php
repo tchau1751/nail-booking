@@ -52,6 +52,48 @@ try {
   $error = 'Error loading recent completions: ' . $e->getMessage();
   $recent = [];
 }
+
+// Summary stats
+try {
+  $summary = $pdo->query("
+    SELECT
+      SUM(stamp_count) as total_stamps_earned,
+      COUNT(CASE WHEN stamp_count = 0 THEN 1 END) as rewards_given,
+      ROUND(AVG(stamp_count), 1) as avg_stamps_per_client
+    FROM clients
+  ")->fetch();
+} catch (Exception $e) {
+  $summary = ['total_stamps_earned' => 0, 'rewards_given' => 0, 'avg_stamps_per_client' => 0];
+}
+
+// Distribution by level
+try {
+  $distribution = $pdo->query("
+    SELECT
+      SUM(CASE WHEN stamp_count = 0 THEN 1 ELSE 0 END) as level_0,
+      SUM(CASE WHEN stamp_count BETWEEN 1 AND 2 THEN 1 ELSE 0 END) as level_1_2,
+      SUM(CASE WHEN stamp_count BETWEEN 3 AND 5 THEN 1 ELSE 0 END) as level_3_5,
+      SUM(CASE WHEN stamp_count BETWEEN 6 AND 8 THEN 1 ELSE 0 END) as level_6_8,
+      SUM(CASE WHEN stamp_count >= 9 THEN 1 ELSE 0 END) as level_9_10
+    FROM clients
+  ")->fetch();
+} catch (Exception $e) {
+  $distribution = ['level_0'=>0, 'level_1_2'=>0, 'level_3_5'=>0, 'level_6_8'=>0, 'level_9_10'=>0];
+}
+
+// Goals breakdown
+try {
+  $goals = $pdo->query("
+    SELECT
+      SUM(CASE WHEN stamp_count >= 9 THEN 1 ELSE 0 END) as almost_done,
+      SUM(CASE WHEN stamp_count >= 5 AND stamp_count < 9 THEN 1 ELSE 0 END) as halfway,
+      SUM(CASE WHEN stamp_count > 0 AND stamp_count < 5 THEN 1 ELSE 0 END) as started,
+      SUM(CASE WHEN stamp_count = 0 THEN 1 ELSE 0 END) as not_started
+    FROM clients
+  ")->fetch();
+} catch (Exception $e) {
+  $goals = ['almost_done'=>0, 'halfway'=>0, 'started'=>0, 'not_started'=>0];
+}
 ?>
 
 <div class="panel">
@@ -119,7 +161,7 @@ try {
   </div>
 
   <!-- Recent Completions -->
-  <div>
+  <div style="margin-bottom:28px;">
     <h3 style="font-size:16px;margin-bottom:12px;font-weight:600;">📋 Recent Check-Ins</h3>
     <div style="overflow-x:auto;border:1px solid #ddd;border-radius:8px;">
       <table style="width:100%;font-size:13px;border-collapse:collapse;">
@@ -144,6 +186,75 @@ try {
           <?php endforeach; ?>
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- SECTION 1: Summary Stats -->
+  <div style="margin-bottom:28px;">
+    <h3 style="font-size:16px;margin-bottom:12px;font-weight:600;">📊 Summary Statistics</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;">
+      <div style="background:#e8f5e9;padding:16px;border-radius:8px;text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:#2e7d32;"><?= (int)$summary['total_stamps_earned'] ?></div>
+        <div style="font-size:12px;color:#666;margin-top:4px;">Total Stamps Earned</div>
+      </div>
+      <div style="background:#fff3e0;padding:16px;border-radius:8px;text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:#e65100;"><?= (int)$summary['rewards_given'] ?></div>
+        <div style="font-size:12px;color:#666;margin-top:4px;">Rewards Given</div>
+      </div>
+      <div style="background:#f3e5f5;padding:16px;border-radius:8px;text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:#6a1b9a;"><?= $summary['avg_stamps_per_client'] ?></div>
+        <div style="font-size:12px;color:#666;margin-top:4px;">Avg per Client</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 2: Distribution Chart -->
+  <div style="margin-bottom:28px;">
+    <h3 style="font-size:16px;margin-bottom:12px;font-weight:600;">📈 Stamp Distribution</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:12px;">
+      <div style="background:#f5f5f5;padding:12px;border-radius:8px;text-align:center;">
+        <div style="font-size:16px;font-weight:700;color:#333;"><?= (int)$distribution['level_0'] ?></div>
+        <div style="font-size:11px;color:#666;margin-top:4px;">0 Stamps</div>
+      </div>
+      <div style="background:#bbdefb;padding:12px;border-radius:8px;text-align:center;">
+        <div style="font-size:16px;font-weight:700;color:#1976d2;"><?= (int)$distribution['level_1_2'] ?></div>
+        <div style="font-size:11px;color:#666;margin-top:4px;">1-2 Stamps</div>
+      </div>
+      <div style="background:#81c784;padding:12px;border-radius:8px;text-align:center;">
+        <div style="font-size:16px;font-weight:700;color:#fff;"><?= (int)$distribution['level_3_5'] ?></div>
+        <div style="font-size:11px;color:#666;margin-top:4px;">3-5 Stamps</div>
+      </div>
+      <div style="background:#ffa726;padding:12px;border-radius:8px;text-align:center;">
+        <div style="font-size:16px;font-weight:700;color:#fff;"><?= (int)$distribution['level_6_8'] ?></div>
+        <div style="font-size:11px;color:#666;margin-top:4px;">6-8 Stamps</div>
+      </div>
+      <div style="background:#ef5350;padding:12px;border-radius:8px;text-align:center;">
+        <div style="font-size:16px;font-weight:700;color:#fff;"><?= (int)$distribution['level_9_10'] ?></div>
+        <div style="font-size:11px;color:#666;margin-top:4px;">9-10 Stamps</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 3: Goals/Progress -->
+  <div style="margin-bottom:28px;">
+    <h3 style="font-size:16px;margin-bottom:12px;font-weight:600;">🎯 Progress Goals</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px;">
+      <div style="border-left:4px solid #ef5350;background:#ffebee;padding:14px;border-radius:4px;">
+        <div style="font-weight:600;color:#c62828;"><?= (int)$goals['almost_done'] ?> Almost Done</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">9-10 stamps</div>
+      </div>
+      <div style="border-left:4px solid #ffa726;background:#fff3e0;padding:14px;border-radius:4px;">
+        <div style="font-weight:600;color:#e65100;"><?= (int)$goals['halfway'] ?> Halfway</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">5-8 stamps</div>
+      </div>
+      <div style="border-left:4px solid #81c784;background:#e8f5e9;padding:14px;border-radius:4px;">
+        <div style="font-weight:600;color:#2e7d32;"><?= (int)$goals['started'] ?> Started</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">1-4 stamps</div>
+      </div>
+      <div style="border-left:4px solid #9e9e9e;background:#f5f5f5;padding:14px;border-radius:4px;">
+        <div style="font-weight:600;color:#424242;"><?= (int)$goals['not_started'] ?> Not Started</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">0 stamps</div>
+      </div>
     </div>
   </div>
   </div>
