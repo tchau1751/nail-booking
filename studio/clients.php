@@ -88,15 +88,15 @@ try {
         </table>
       </div>
     <?php endif; ?>
-  </div>
-</div>
 
-<!-- BOTTOM NAVIGATION -->
-<div style="margin-top:28px;padding:20px;background:#f9f9f9;border-radius:12px;display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:12px;">
-  <a href="<?= BASE_PATH ?>/studio/" style="padding:12px;background:#1ba0c8;color:white;text-align:center;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">📋 Bookings</a>
-  <a href="<?= BASE_PATH ?>/studio/stamp-cards.php" style="padding:12px;background:#28a745;color:white;text-align:center;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">🎫 Stamps</a>
-  <a href="<?= BASE_PATH ?>/studio/stamp-monitor.php" style="padding:12px;background:#ffc107;color:black;text-align:center;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">📊 Monitor</a>
-  <a href="<?= BASE_PATH ?>/studio/stamp-history.php" style="padding:12px;background:#dc3545;color:white;text-align:center;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">📝 History</a>
+    <!-- BOTTOM NAVIGATION -->
+    <div style="margin-top:28px;padding:16px;background:#f9f9f9;border-radius:8px;border-top:1px solid #ddd;display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;">
+      <a href="<?= BASE_PATH ?>/studio/" style="padding:12px;background:#1ba0c8;color:white;text-align:center;border-radius:6px;text-decoration:none;font-weight:600;font-size:12px;">📋 Bookings</a>
+      <a href="<?= BASE_PATH ?>/studio/stamp-cards.php" style="padding:12px;background:#28a745;color:white;text-align:center;border-radius:6px;text-decoration:none;font-weight:600;font-size:12px;">🎫 Stamps</a>
+      <a href="<?= BASE_PATH ?>/studio/stamp-monitor.php" style="padding:12px;background:#ffc107;color:black;text-align:center;border-radius:6px;text-decoration:none;font-weight:600;font-size:12px;">📊 Monitor</a>
+      <a href="<?= BASE_PATH ?>/studio/stamp-history.php" style="padding:12px;background:#dc3545;color:white;text-align:center;border-radius:6px;text-decoration:none;font-weight:600;font-size:12px;">📝 History</a>
+    </div>
+  </div>
 </div>
 
 <?php require_once __DIR__ . '/includes/layout_end.php'; ?>
