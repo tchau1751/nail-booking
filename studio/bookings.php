@@ -64,7 +64,7 @@ function qs(array $overrides): string {
       <div class="empty-state">No bookings match these filters.</div>
     <?php else: ?>
       <table class="table">
-        <thead><tr><th><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th><th>Client</th><th>Service</th><th>Technician</th><th>Date &amp; Time</th><th>Price</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th><th>Client</th><th>Service</th><th>Technician</th><th>Status</th><th></th></tr></thead>
         <tbody>
         <?php foreach ($bookings as $b): ?>
           <tr>
@@ -77,8 +77,6 @@ function qs(array $overrides): string {
             </td>
             <td><?= e($b['service_name']) ?></td>
             <td><?php if ($b['staff_name']): ?><span style="color:<?= e($b['staff_color']) ?>;font-weight:600;"><?= e($b['staff_name']) ?></span><?php else: ?><span style="color:var(--a-ink-faint);">No preference</span><?php endif; ?></td>
-            <td><?= e(date('M j, Y', strtotime($b['appointment_date']))) ?> · <?= e(date('g:i A', strtotime($b['appointment_time']))) ?></td>
-            <td><?= e(format_price((float)$b['price'])) ?></td>
             <td><span class="badge badge-<?= e($b['status']) ?>"><?= e(ucfirst(str_replace('_',' ',$b['status']))) ?></span></td>
             <td>
               <div class="row-actions" style="display:flex;gap:6px;align-items:center;">
