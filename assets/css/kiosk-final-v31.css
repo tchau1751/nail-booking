@@ -51,7 +51,7 @@ body {
   flex: 0 0 380px;
   background-color: rgb(27, 160, 200) !important;
   border-radius: 32px;
-  padding: 16px 12px 12px;
+  padding: 24px 22px 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -512,10 +512,12 @@ body {
 .terms {
   font-size: 10px;
   line-height: 1.5;
-  color: var(--k-text-light);
+  color: rgba(255,255,255,0.9);
   text-align: center;
   margin-top: 12px;
-  padding: 0 6px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 14px;
 }
 
 .kiosk-footer {
@@ -565,7 +567,7 @@ body {
 /* TABLET/SMALL SCREENS */
 @media (max-width: 860px) {
   .kiosk-layout { flex-direction: row; max-width: 100%; gap: 12px; }
-  .kiosk-promo-banner { flex: 0 0 320px; padding: 12px 12px; }
+  .kiosk-promo-banner { flex: 0 0 320px; padding: 18px 16px; }
   .kiosk-promo-imgwrap { height: 130px; margin-bottom: 8px; }
   .kiosk-promo-text { font-size: 14px; }
   .kiosk-card { min-width: 340px; padding: 10px 12px; }
