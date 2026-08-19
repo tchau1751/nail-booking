@@ -3,7 +3,7 @@
   "short_name": "Diamond Nails",
   "start_url": "/kiosk-login.php",
   "display": "fullscreen",
-  "orientation": "portrait",
+  "orientation": "landscape",
   "background_color": "#1c1512",
   "theme_color": "#1c1512",
   "icons": [
