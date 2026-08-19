@@ -240,19 +240,21 @@ body {
 
 .kiosk-display.filled { color: #ffffff !important; }
 
-/* KEYPAD - COMPACT PILL BUTTONS */
+/* KEYPAD - ROUND BUTTONS, SPACED OUT */
 .kiosk-keypad {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 16px 20px;
+  margin-bottom: 14px;
+  justify-items: center;
 }
 
 .kiosk-key {
   position: relative;
   overflow: hidden;
-  height: 50px;
-  border-radius: 999px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
   border: none;
   background: linear-gradient(135deg, #ffc4a0 0%, #ffb380 50%, #d4907d 100%);
   color: #fff;
@@ -560,12 +562,12 @@ body {
   .kiosk-card { min-width: 340px; padding: 10px 12px; }
   .kiosk-header h1 { font-size: 16px; }
   .kiosk-emoji { font-size: 22px; }
-  .kiosk-key { height: 44px; font-size: 16px; }
+  .kiosk-key { width: 44px; height: 44px; font-size: 16px; }
   .kiosk-btn-primary { padding: 10px; font-size: 13px; }
 }
 
 /* TOUCHSCREEN OPTIMIZATION */
 @media (hover: none) and (pointer: coarse) {
-  .kiosk-key { height: 52px; font-size: 18px; }
+  .kiosk-key { width: 60px; height: 60px; font-size: 18px; }
   .kiosk-back, .kiosk-brand-mark { width: 40px; height: 40px; }
 }
