@@ -186,8 +186,12 @@ $csrf = function_exists('admin_csrf_token') ? admin_csrf_token() : '';
   .cw-note{padding:12px 14px;border-radius:8px;margin-bottom:14px;font-size:13px}
   .cw-ok{background:#e8f5e9;color:#1b5e20;border:1px solid #c8e6c9}
   .cw-err{background:#fdecea;color:#8c1d18;border:1px solid #f5c6cb}
-  .cw-nav{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px}
-  .cw-nav a{padding:7px;text-align:center;border-radius:6px;text-decoration:none;font-weight:700;font-size:11.5px}
+  .cw-topbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .cw-nav{display:flex;gap:8px;flex-wrap:wrap}
+  .cw-nav a{padding:6px 12px;border-radius:6px;text-decoration:none;font-weight:700;font-size:11.5px;white-space:nowrap}
+  .cw-stat-pill{margin-left:auto;padding:6px 14px;border-radius:999px;background:#eef6fb;color:#1ba0c8;font-weight:800;font-size:12.5px;white-space:nowrap}
+  .cw-utility{background:#f7f7f7;border:1px solid #eee;border-radius:8px;padding:12px 14px;margin-bottom:14px;display:flex;flex-direction:column;gap:10px}
+  .cw-utility .cw-bar{margin-bottom:0}
 </style>
 
 <div class="panel">
@@ -198,11 +202,14 @@ $csrf = function_exists('admin_csrf_token') ? admin_csrf_token() : '';
 
   <div class="panel-body">
 
-    <div class="cw-nav">
-      <a href="<?= $BP ?>/studio/"                  style="background:#1ba0c8;color:#fff">Bookings</a>
-      <a href="<?= $BP ?>/studio/stamp-cards.php"   style="background:#28a745;color:#fff">Stamp Cards</a>
-      <a href="<?= $BP ?>/studio/stamp-monitor.php" style="background:#ffc107;color:#000">Monitor</a>
-      <a href="<?= $BP ?>/studio/stamp-history.php" style="background:#dc3545;color:#fff">History</a>
+    <div class="cw-topbar">
+      <div class="cw-nav">
+        <a href="<?= $BP ?>/studio/"                  style="background:#1ba0c8;color:#fff">Bookings</a>
+        <a href="<?= $BP ?>/studio/stamp-cards.php"   style="background:#28a745;color:#fff">Stamp Cards</a>
+        <a href="<?= $BP ?>/studio/stamp-monitor.php" style="background:#ffc107;color:#000">Monitor</a>
+        <a href="<?= $BP ?>/studio/stamp-history.php" style="background:#dc3545;color:#fff">History</a>
+      </div>
+      <div class="cw-stat-pill"><?= count($rows) ?> <?= $q !== '' ? 'matching' : 'clients' ?></div>
     </div>
 
     <?php foreach ($notices as $n): ?><div class="cw-note cw-ok"><?= h($n) ?></div><?php endforeach; ?>
@@ -215,27 +222,24 @@ $csrf = function_exists('admin_csrf_token') ? admin_csrf_token() : '';
       <a class="cw-btn" style="background:#28a745;color:#fff" href="?export=1&amp;q=<?= urlencode($q) ?>">Export CSV</a>
     </form>
 
-    <form class="cw-bar" method="post" enctype="multipart/form-data">
-      <input type="hidden" name="act" value="import">
-      <input type="hidden" name="q" value="<?= h($q) ?>">
-      <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
-      <input type="file" name="csv" accept=".csv" required style="font-size:13px">
-      <button class="cw-btn" style="background:#6c757d;color:#fff">Import CSV (updates stamps)</button>
-    </form>
+    <div class="cw-utility">
+      <form class="cw-bar" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="act" value="import">
+        <input type="hidden" name="q" value="<?= h($q) ?>">
+        <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+        <input type="file" name="csv" accept=".csv" required style="font-size:13px">
+        <button class="cw-btn" style="background:#6c757d;color:#fff">Import CSV (updates stamps)</button>
+      </form>
 
-    <form class="cw-bar" method="post" style="border-top:1px solid #eee;padding-top:14px">
-      <input type="hidden" name="act" value="add">
-      <input type="hidden" name="q" value="<?= h($q) ?>">
-      <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
-      <input type="text" name="name" placeholder="New client name *" required>
-      <?php if ($PHONE): ?><input type="text" name="phone" placeholder="Phone"><?php endif; ?>
-      <?php if ($EMAIL): ?><input type="text" name="email" placeholder="Email"><?php endif; ?>
-      <button class="cw-btn" style="background:#28a745;color:#fff">+ Add Client</button>
-    </form>
-
-    <div style="padding:18px;background:#f0f0f0;border-radius:8px;text-align:center;margin:18px 0">
-      <div style="font-size:38px;font-weight:800;color:#1ba0c8"><?= count($rows) ?></div>
-      <div style="font-size:13px;color:#666"><?= $q !== '' ? 'Matching "' . h($q) . '"' : 'Total Clients' ?></div>
+      <form class="cw-bar" method="post">
+        <input type="hidden" name="act" value="add">
+        <input type="hidden" name="q" value="<?= h($q) ?>">
+        <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+        <input type="text" name="name" placeholder="New client name *" required>
+        <?php if ($PHONE): ?><input type="text" name="phone" placeholder="Phone"><?php endif; ?>
+        <?php if ($EMAIL): ?><input type="text" name="email" placeholder="Email"><?php endif; ?>
+        <button class="cw-btn" style="background:#28a745;color:#fff">+ Add Client</button>
+      </form>
     </div>
 
     <?php if (!$rows): ?>
