@@ -11,6 +11,20 @@ if ($kioskMode === 'display'):
 <!DOCTYPE html>
 <html lang="en">
 <head><style>
+/* iOS ignores the manifest orientation lock, so on a portrait-mounted
+   iPad we rotate the page itself to force the landscape layout. */
+@media screen and (orientation: portrait) {
+  html {
+    transform: rotate(90deg);
+    transform-origin: left top;
+    width: 100vh;
+    height: 100vw;
+    overflow-x: hidden;
+    position: absolute;
+    top: 100%;
+    left: 0;
+  }
+}
 body { padding: 40px 20px 10px !important; }
 .kiosk-card { padding: 8px 12px 10px !important; overflow: hidden !important; }
 .kiosk-emoji { font-size: 56px !important; margin-bottom: 12px !important; margin-top: 0 !important; }
@@ -78,6 +92,20 @@ $token = csrf_token();
 <!DOCTYPE html>
 <html lang="en">
 <head><style>
+/* iOS ignores the manifest orientation lock, so on a portrait-mounted
+   iPad we rotate the page itself to force the landscape layout. */
+@media screen and (orientation: portrait) {
+  html {
+    transform: rotate(90deg);
+    transform-origin: left top;
+    width: 100vh;
+    height: 100vw;
+    overflow-x: hidden;
+    position: absolute;
+    top: 100%;
+    left: 0;
+  }
+}
 body { padding: 40px 20px 10px !important; }
 .kiosk-card { padding: 8px 12px 10px !important; overflow: hidden !important; }
 .kiosk-emoji { font-size: 56px !important; margin-bottom: 12px !important; margin-top: 0 !important; }
