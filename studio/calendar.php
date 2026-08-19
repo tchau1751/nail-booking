@@ -170,6 +170,8 @@ $dateLabel = match ($view) {
   .cal-item-badge { position: absolute; top: 4px; right: 6px; font-size: 9px; padding: 1px 6px; }
   .cal-item-flat { position: static; border-radius: 5px; padding: 3px 6px; margin-bottom: 3px; font-size: 11px; cursor: grab; touch-action: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .apt-ghost { position: fixed; pointer-events: none; z-index: 3000; opacity: 0.9; transform: scale(1.03); box-shadow: var(--a-shadow-lg); }
+  .now-line { position: absolute; left: 0; right: 0; height: 2px; background: #e0453c; z-index: 2; pointer-events: none; }
+  .now-line::before { content: ''; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: #e0453c; }
 
   .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid var(--a-border); border-left: 1px solid var(--a-border); background: var(--a-surface); border-radius: var(--a-radius-md); overflow: hidden; box-shadow: var(--a-shadow-sm); }
   .month-head { padding: 10px; text-align: center; font-size: 11.5px; font-weight: 700; color: var(--a-ink-faint); text-transform: uppercase; background: var(--a-surface-soft); border-right: 1px solid var(--a-border); border-bottom: 1px solid var(--a-border); }
@@ -352,6 +354,7 @@ const CSRF_TOKEN = <?= json_encode($csrf) ?>;
 const CURRENT_DATE = <?= json_encode($date) ?>;
 const VIEW = <?= json_encode($view) ?>;
 const START_HOUR = <?= $START_HOUR ?>;
+const END_HOUR = <?= $END_HOUR ?>;
 const PX_PER_MIN = <?= $PX_PER_MIN ?>;
 const SLOT_MINUTES = <?= $SLOT_MINUTES ?>;
 const BOOKINGS = <?= json_encode(array_map(function ($b) {
@@ -612,6 +615,37 @@ function offsetToTime(offsetY) {
 }
 
 document.querySelectorAll('.cal-item').forEach(attachDrag);
+
+/* ---------------- Live "now" line (Day/Week views, today only) ---------------- */
+function updateNowLine() {
+  document.querySelectorAll('.now-line').forEach(el => el.remove());
+  if (VIEW !== 'day' && VIEW !== 'week') return;
+
+  const now = new Date();
+  const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  const minutesFromStart = (now.getHours() * 60 + now.getMinutes()) - START_HOUR * 60;
+  const totalMinutes = (END_HOUR - START_HOUR) * 60;
+  if (minutesFromStart < 0 || minutesFromStart > totalMinutes) return;
+  const top = minutesFromStart * PX_PER_MIN;
+
+  let targets = [];
+  if (VIEW === 'day' && CURRENT_DATE === todayStr) {
+    targets = document.querySelectorAll('.cal-drop-staff');
+  } else if (VIEW === 'week') {
+    const col = document.querySelector('.cal-drop-date[data-date="' + todayStr + '"]');
+    if (col) targets = [col];
+  }
+
+  targets.forEach(col => {
+    const line = document.createElement('div');
+    line.className = 'now-line';
+    line.style.top = top + 'px';
+    col.appendChild(line);
+  });
+}
+
+updateNowLine();
+setInterval(updateNowLine, 60000);
 </script>
 
 <?php require_once __DIR__ . '/includes/layout_end.php'; ?>
