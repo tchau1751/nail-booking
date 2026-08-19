@@ -174,6 +174,7 @@ body { padding: 40px 20px 10px !important; }
     <?php if (!empty($business['kiosk_points_lookup_enabled'])): ?>
     <button type="button" class="kiosk-btn-secondary" id="check-points-btn" disabled>✨ Check My Points</button>
     <?php endif; ?>
+    <div class="terms">By checking in you agree to receive text messages about your appointments, and occasional birthday or promotional offers from us. Reply STOP at any time to opt out. Message and data rates may apply. We never sell your information.</div>
   </div>
 
   <!-- Step 1: name entry (new clients only) -->

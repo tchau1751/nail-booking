@@ -509,6 +509,15 @@ body {
   margin-bottom: 8px;
 }
 
+.terms {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--k-text-light);
+  text-align: center;
+  margin-top: 12px;
+  padding: 0 6px;
+}
+
 .kiosk-footer {
   text-align: center;
   margin-top: 8px;
