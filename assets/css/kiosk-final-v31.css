@@ -201,7 +201,7 @@ body {
 
 .kiosk-header h1 {
   font-family: 'Playfair Display', Georgia, serif;
-  font-size: 18px;
+  font-size: 28px;
   font-weight: 700;
   color: #ffffff;
   margin: 0 0 3px;
@@ -244,8 +244,8 @@ body {
 .kiosk-keypad {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px 20px;
-  margin-bottom: 14px;
+  gap: 22px 30px;
+  margin-bottom: 18px;
   justify-items: center;
 }
 
@@ -560,7 +560,7 @@ body {
   .kiosk-promo-imgwrap { height: 100px; margin-bottom: 8px; }
   .kiosk-promo-text { font-size: 14px; }
   .kiosk-card { min-width: 340px; padding: 10px 12px; }
-  .kiosk-header h1 { font-size: 16px; }
+  .kiosk-header h1 { font-size: 22px; }
   .kiosk-emoji { font-size: 22px; }
   .kiosk-key { width: 44px; height: 44px; font-size: 16px; }
   .kiosk-btn-primary { padding: 10px; font-size: 13px; }
