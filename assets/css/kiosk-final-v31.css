@@ -37,7 +37,7 @@ body {
   width: 100%;
   max-width: 1000px;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   justify-content: center;
   gap: 16px;
   border: 2px solid rgba(255,255,255,0.3);

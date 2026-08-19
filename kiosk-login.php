@@ -110,7 +110,6 @@ body { padding: 40px 20px 10px !important; }
 .kiosk-card { padding: 8px 12px 10px !important; overflow: hidden !important; }
 .kiosk-emoji { font-size: 56px !important; margin-bottom: 12px !important; margin-top: 0 !important; }
 .kiosk-header { margin-bottom: 10px !important; }
-.kiosk-promo-banner { margin-top: 28px !important; }
 </style>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
