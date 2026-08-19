@@ -1,0 +1,469 @@
+/* Diamond Nails & Spa — Kiosk Check-In FINAL (Compact & Elegant) */
+
+:root {
+  --k-bg: #1ba0c8;
+  --k-white: #ffffff;
+  --k-text-dark: #1f4d5e;
+  --k-text-light: #5a7c8a;
+  --k-turquoise: #1ba0c8;
+  --k-pink: #d63d7c;
+  --k-green: #28a745;
+}
+
+* { box-sizing: border-box; touch-action: manipulation; }
+html, body {
+  height: 100%;
+  margin: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+button svg { pointer-events: none; }
+
+body {
+  font-family: 'Poppins', -apple-system, sans-serif;
+  color: var(--k-text-dark);
+  background: var(--k-bg);
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.kiosk-layout {
+  width: 100%;
+  max-width: 1000px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 16px;
+}
+
+/* LEFT: PROMO BANNER - COMPACT */
+.kiosk-promo-banner {
+  flex: 0 0 300px;
+  background-color: rgb(27, 160, 200) !important;
+  border-radius: 32px;
+  padding: 14px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.kiosk-promo-banner.has-image {
+  background-color: rgb(27, 160, 200) !important;
+}
+
+.kiosk-promo-imgwrap {
+  width: 100%;
+  height: 110px;
+  flex-shrink: 0;
+  overflow: hidden;
+  margin-bottom: 10px;
+  border-radius: 16px;
+}
+
+.kiosk-promo-bgimg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.kiosk-promo-body {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  flex: 1;
+}
+
+.kiosk-promo-badge {
+  display: inline-block;
+  background: var(--k-pink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+  margin-top: 0px;
+  box-shadow: 0 6px 14px rgba(214,61,124,0.4);
+}
+
+.kiosk-promo-text {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+  margin-bottom: 0px;
+  margin-top: 0px;
+}
+
+.kiosk-promo-details {
+  font-size: 10px;
+  color: rgba(255,255,255,0.85);
+  line-height: 1.3;
+  margin-top: 12px;
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+.kiosk-promo-banner::after {
+  content: '';
+  display: none;
+}
+
+.kiosk-promo-qr {
+  width: 60px;
+  height: 60px;
+  margin-bottom: 6px;
+}
+
+/* RIGHT: KEYPAD CARD - TURQUOISE */
+.kiosk-card {
+  flex: 1 1 auto;
+  min-width: 370px;
+  background: rgb(27, 160, 200);
+  border-radius: 32px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.15);
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.kiosk-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.kiosk-brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--k-turquoise);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.kiosk-back {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: var(--k-turquoise);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.kiosk-header {
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.kiosk-emoji {
+  font-size: 24px;
+  margin-bottom: 2px;
+}
+
+.kiosk-header h1 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 1px;
+}
+
+.kiosk-header p {
+  margin: 0;
+  color: rgba(255,255,255,0.8);
+  font-size: 11px;
+}
+
+/* PHONE ENTRY - TURQUOISE BLUE */
+.kiosk-display {
+  background-color: #1ba0c8 !important;
+  border: none;
+  border-radius: 22px;
+  padding: 8px 12px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+  color: #ffffff !important;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 8px rgba(27,160,200,0.2);
+}
+
+.kiosk-display.filled { color: #ffffff !important; }
+
+/* KEYPAD - COMPACT PILL BUTTONS */
+.kiosk-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.kiosk-key {
+  position: relative;
+  overflow: hidden;
+  height: 50px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #ffc4a0 0%, #ffb380 50%, #d4907d 100%);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+  font-family: 'Poppins', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(212,144,125,0.4);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kiosk-key::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(rgba(255,255,255,0.25), rgba(255,255,255,0.02));
+  border-radius: 999px 999px 0 0;
+  pointer-events: none;
+}
+
+.kiosk-key:active { transform: scale(0.90); box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
+.kiosk-key-back { background: #e8f3f8; border: 2px solid var(--k-turquoise); color: var(--k-turquoise); }
+.kiosk-key-back::before { display: none; }
+
+/* BUTTONS */
+.kiosk-btn-primary {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #4dc951 0%, #28a745 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Poppins', sans-serif;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(40,167,69,0.4);
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+
+.kiosk-btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(rgba(255,255,255,0.25), rgba(255,255,255,0.05));
+  pointer-events: none;
+}
+
+.kiosk-btn-primary:active { transform: scale(0.96); }
+.kiosk-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.kiosk-btn-secondary {
+  width: 100%;
+  padding: 10px;
+  margin-top: 6px;
+  border-radius: 20px;
+  background: transparent;
+  border: 2px solid var(--k-turquoise);
+  color: var(--k-turquoise);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Poppins', sans-serif;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.kiosk-btn-secondary:active { transform: scale(0.96); }
+.kiosk-btn-secondary:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.kiosk-help-link {
+  font-size: 11px;
+  color: #ffffff;
+  text-decoration: underline;
+  cursor: pointer;
+  text-align: center;
+  margin-top: 8px;
+  transition: color 0.1s ease;
+}
+
+.kiosk-help-link:hover { color: #ffffff; }
+
+/* STEPS */
+.kiosk-step { display: none; }
+.kiosk-step.active { display: block; }
+
+.kiosk-alert {
+  display: none;
+  background: rgba(220,52,61,0.1);
+  color: #dc343d;
+  border: 1px solid rgba(220,52,61,0.3);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 11px;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.kiosk-alert.show { display: block; }
+
+/* INPUTS */
+.kiosk-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #ddd;
+  border-radius: 12px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  color: var(--k-text-dark);
+  background: #f5f5f5;
+  margin-bottom: 8px;
+}
+
+.kiosk-input-label {
+  font-size: 11px;
+  color: var(--k-text-light);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+/* SERVICES GRID - 2 COLUMNS COMPACT */
+.kiosk-service-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+  max-height: none;
+  overflow-y: visible;
+}
+
+.kiosk-service {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  border: 2px solid #ddd;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  text-align: center;
+}
+
+.kiosk-service:active { transform: scale(0.96); }
+
+.kiosk-service.selected {
+  border-color: var(--k-turquoise);
+  background: rgba(27,160,200,0.1);
+  box-shadow: 0 0 0 1px rgba(27,160,200,0.2);
+}
+
+.kiosk-service-media { background: #f5f5f5; }
+
+.kiosk-service-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.kiosk-service-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+}
+
+.kiosk-service-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--k-text-dark);
+  margin-bottom: 2px;
+  line-height: 1.1;
+}
+
+.kiosk-service-meta {
+  display: none;
+}
+
+.kiosk-service-summary {
+  font-size: 11px;
+  color: var(--k-text-light);
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.kiosk-footer {
+  text-align: center;
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.kiosk-footer a {
+  color: var(--k-turquoise);
+  text-decoration: none;
+}
+
+.kiosk-footer a:hover {
+  text-decoration: underline;
+}
+
+/* TABLET/SMALL SCREENS */
+@media (max-width: 860px) {
+  .kiosk-layout { flex-direction: row; max-width: 100%; gap: 12px; }
+  .kiosk-promo-banner { flex: 0 0 280px; padding: 12px 12px; }
+  .kiosk-promo-imgwrap { height: 100px; margin-bottom: 8px; }
+  .kiosk-promo-text { font-size: 14px; }
+  .kiosk-card { min-width: 340px; padding: 10px 12px; }
+  .kiosk-header h1 { font-size: 16px; }
+  .kiosk-emoji { font-size: 22px; }
+  .kiosk-key { height: 44px; font-size: 16px; }
+  .kiosk-btn-primary { padding: 10px; font-size: 13px; }
+}
+
+/* TOUCHSCREEN OPTIMIZATION */
+@media (hover: none) and (pointer: coarse) {
+  .kiosk-key { height: 52px; font-size: 18px; }
+  .kiosk-back, .kiosk-brand-mark { width: 40px; height: 40px; }
+}

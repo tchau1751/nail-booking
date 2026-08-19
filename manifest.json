@@ -1,0 +1,12 @@
+{
+  "name": "Diamond Nails & Spa Kiosk",
+  "short_name": "Diamond Nails",
+  "start_url": "/kiosk-login.php",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#1c1512",
+  "theme_color": "#1c1512",
+  "icons": [
+    { "src": "/assets/img/kiosk-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

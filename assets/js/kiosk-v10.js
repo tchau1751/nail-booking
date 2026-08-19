@@ -1,0 +1,297 @@
+document.addEventListener('DOMContentLoaded', () => {
+  const steps = Array.from(document.querySelectorAll('.kiosk-step'));
+  const backBtn = document.getElementById('kiosk-back');
+  const subtitle = document.getElementById('kiosk-subtitle');
+  const alertBox = document.getElementById('kiosk-alert');
+  const csrfToken = document.getElementById('csrf_token').value;
+
+  let phoneDigits = '';
+  let fullName = '';
+  let dobValue = '';
+  let cameFromLookup = false;
+  let selectedServices = []; // array of card elements, up to 3
+  let selectedDiscountId = '';
+  let restartTimer = null;
+  const MAX_SERVICES = 3;
+
+  const subtitles = {
+    0: 'Enter your phone number to check in',
+    1: "What's your name?",
+    2: 'Choose your service',
+    3: 'Any discounts?',
+    4: '',
+    5: '',
+  };
+
+  function showStep(index) {
+    steps.forEach((s) => s.classList.toggle('active', Number(s.dataset.step) === index));
+    subtitle.textContent = subtitles[index] ?? '';
+    backBtn.style.visibility = index === 0 ? 'hidden' : 'visible';
+    hideAlert();
+  }
+
+  function showAlert(message) {
+    alertBox.textContent = message;
+    alertBox.classList.add('show');
+  }
+  function hideAlert() {
+    alertBox.classList.remove('show');
+  }
+
+  function formatPhoneDisplay(digits) {
+    if (!digits) return 'Phone Number';
+    const area = digits.slice(0, 3);
+    const mid = digits.slice(3, 6);
+    const last = digits.slice(6, 10);
+    let out = '';
+    if (digits.length > 6) out = `(${area}) ${mid}-${last}`;
+    else if (digits.length > 3) out = `(${area}) ${mid}`;
+    else out = `${area}`;
+    return out;
+  }
+
+  /* ---------------- Step 0: phone keypad ---------------- */
+  const phoneDisplay = document.getElementById('phone-display');
+  const phoneContinue = document.getElementById('phone-continue');
+  const checkPointsBtn = document.getElementById('check-points-btn');
+
+  function refreshPhoneDisplay() {
+    phoneDisplay.textContent = formatPhoneDisplay(phoneDigits);
+    phoneDisplay.classList.toggle('filled', phoneDigits.length > 0);
+    phoneContinue.disabled = phoneDigits.length !== 10;
+    if (checkPointsBtn) checkPointsBtn.disabled = phoneDigits.length !== 10;
+  }
+
+  document.querySelectorAll('.kiosk-key[data-digit]').forEach((key) => {
+    key.addEventListener('click', () => {
+      if (phoneDigits.length >= 10) return;
+      phoneDigits += key.dataset.digit;
+      refreshPhoneDisplay();
+    });
+  });
+  document.getElementById('kiosk-erase').addEventListener('click', () => {
+    phoneDigits = phoneDigits.slice(0, -1);
+    refreshPhoneDisplay();
+  });
+
+  phoneContinue.addEventListener('click', async () => {
+    phoneContinue.disabled = true;
+    phoneContinue.textContent = 'Checking...';
+    try {
+      const res = await fetch('/actions/kiosk-lookup-client.php?phone=' + encodeURIComponent(phoneDigits));
+      const data = await res.json();
+      if (data.ok && data.found) {
+        fullName = data.full_name;
+        cameFromLookup = true;
+        subtitles[2] = `Welcome back, ${fullName.split(' ')[0]}! Choose your service`;
+        showStep(2);
+      } else {
+        cameFromLookup = false;
+        document.getElementById('name-input').value = '';
+        showStep(1);
+      }
+    } catch (err) {
+      showAlert('Could not reach the front desk system. Please ask for help.');
+    }
+    phoneContinue.disabled = phoneDigits.length !== 10;
+    phoneContinue.textContent = 'Continue';
+  });
+
+  /* ---------------- "Check My Points" (no check-in) ---------------- */
+  if (checkPointsBtn) {
+    checkPointsBtn.addEventListener('click', async () => {
+      if (phoneDigits.length !== 10) return;
+      checkPointsBtn.disabled = true;
+      checkPointsBtn.textContent = 'Looking up...';
+      try {
+        const res = await fetch('/actions/kiosk-check-points.php?phone=' + encodeURIComponent(phoneDigits));
+        const data = await res.json();
+        if (data.ok && data.found) {
+          document.getElementById('points-lookup-name').textContent = `Hi, ${data.full_name.split(' ')[0]}!`;
+          document.getElementById('points-lookup-balance').textContent = `You have ${data.points} reward point${data.points === 1 ? '' : 's'}.`;
+        } else {
+          document.getElementById('points-lookup-name').textContent = 'No account found';
+          document.getElementById('points-lookup-balance').textContent = 'We couldn\'t find a rewards account for that phone number yet — check in for a service to start earning points.';
+        }
+        showStep(5);
+      } catch (err) {
+        showAlert('Could not reach the front desk system. Please ask for help.');
+      }
+      checkPointsBtn.disabled = phoneDigits.length !== 10;
+      checkPointsBtn.textContent = '✨ Check My Points';
+    });
+  }
+  document.getElementById('points-lookup-done')?.addEventListener('click', resetKiosk);
+
+  /* ---------------- Step 1: name ---------------- */
+  const nameInput = document.getElementById('name-input');
+  const dobInput = document.getElementById('dob-input');
+  if (dobInput) {
+    dobInput.addEventListener('input', () => {
+      let digits = dobInput.value.replace(/\D/g, '').slice(0, 8);
+      let formatted = digits;
+      if (digits.length > 4) formatted = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+      else if (digits.length > 2) formatted = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+      dobInput.value = formatted;
+    });
+  }
+  document.getElementById('name-continue').addEventListener('click', () => {
+    const value = nameInput.value.trim();
+    if (!value) {
+      showAlert('Please enter your name.');
+      return;
+    }
+    fullName = value;
+    dobValue = dobInput ? dobInput.value : '';
+    subtitles[2] = 'Choose your service';
+    showStep(2);
+  });
+
+  /* ---------------- Step 2: service (up to 3) ---------------- */
+  const serviceContinue = document.getElementById('service-continue');
+  const serviceSummary = document.getElementById('kiosk-service-summary');
+
+  function refreshServiceSummary() {
+    if (!serviceSummary) return;
+    if (selectedServices.length === 0) {
+      serviceSummary.style.display = 'none';
+      return;
+    }
+    const totalPrice = selectedServices.reduce((sum, c) => sum + parseFloat(c.dataset.servicePriceRaw || '0'), 0);
+    const totalMinutes = selectedServices.reduce((sum, c) => sum + parseInt(c.dataset.serviceDuration || '0', 10), 0);
+    serviceSummary.textContent = `${selectedServices.length} selected — $${totalPrice.toFixed(0)} · ${totalMinutes} min total`;
+    serviceSummary.style.display = 'block';
+  }
+
+  document.querySelectorAll('.kiosk-step[data-step="2"] .kiosk-service').forEach((card) => {
+    card.addEventListener('click', () => {
+      const alreadySelected = selectedServices.includes(card);
+      if (alreadySelected) {
+        selectedServices = selectedServices.filter((c) => c !== card);
+        card.classList.remove('selected');
+      } else {
+        if (selectedServices.length >= MAX_SERVICES) {
+          showAlert(`You can select up to ${MAX_SERVICES} services.`);
+          return;
+        }
+        selectedServices.push(card);
+        card.classList.add('selected');
+      }
+      refreshServiceSummary();
+      serviceContinue.disabled = selectedServices.length === 0;
+    });
+  });
+
+  serviceContinue.addEventListener('click', () => {
+    if (selectedServices.length === 0) return;
+    showStep(3);
+  });
+
+  /* ---------------- Step 3: discount (optional) ---------------- */
+  const discountContinue = document.getElementById('discount-continue');
+  document.querySelectorAll('.kiosk-step[data-step="3"] .kiosk-service').forEach((card) => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.kiosk-step[data-step="3"] .kiosk-service').forEach((c) => c.classList.remove('selected'));
+      card.classList.add('selected');
+      selectedDiscountId = card.dataset.discountId || '';
+    });
+  });
+
+  const giftCardInput = document.getElementById('gift-card-input');
+
+  discountContinue.addEventListener('click', async () => {
+    discountContinue.disabled = true;
+    discountContinue.textContent = 'Checking you in...';
+    try {
+      const res = await fetch('/actions/kiosk-checkin.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csrf_token: csrfToken,
+          phone: phoneDigits,
+          full_name: fullName,
+          date_of_birth: dobValue,
+          service_ids: selectedServices.map((c) => c.dataset.serviceId),
+          discount_id: selectedDiscountId,
+          gift_card_code: giftCardInput ? giftCardInput.value.trim() : '',
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        showAlert(data.error || 'Please review your details and try again.');
+        discountContinue.disabled = false;
+        discountContinue.textContent = 'Check Me In';
+        return;
+      }
+      const giftCardEl = document.getElementById('confirm-gift-card');
+      if (giftCardEl) {
+        if (data.booking.gift_card_error) {
+          giftCardEl.textContent = data.booking.gift_card_error;
+          giftCardEl.style.color = 'var(--k-danger)';
+          giftCardEl.style.display = 'block';
+        } else if (data.booking.gift_card_applied) {
+          giftCardEl.textContent = `Gift card applied: -$${data.booking.gift_card_applied.toFixed(2)}`;
+          giftCardEl.style.color = 'var(--k-success)';
+          giftCardEl.style.display = 'block';
+        } else {
+          giftCardEl.style.display = 'none';
+        }
+      }
+      document.getElementById('confirm-name').textContent = data.booking.full_name.split(' ')[0];
+      document.getElementById('confirm-service').textContent = data.booking.service_name;
+      const pointsEl = document.getElementById('confirm-points');
+      if (data.booking.points_earned > 0) {
+        pointsEl.textContent = `✨ You earned ${data.booking.points_earned} point${data.booking.points_earned === 1 ? '' : 's'}! Total: ${data.booking.total_points} point${data.booking.total_points === 1 ? '' : 's'}.`;
+        pointsEl.style.display = 'block';
+      } else if (data.booking.total_points > 0) {
+        pointsEl.textContent = `You have ${data.booking.total_points} reward point${data.booking.total_points === 1 ? '' : 's'}.`;
+        pointsEl.style.display = 'block';
+      } else {
+        pointsEl.style.display = 'none';
+      }
+      showStep(4);
+      restartTimer = setTimeout(resetKiosk, 15000);
+    } catch (err) {
+      showAlert('Could not reach the front desk system. Please ask for help.');
+      discountContinue.disabled = false;
+      discountContinue.textContent = 'Check Me In';
+    }
+  });
+
+  /* ---------------- Back / restart ---------------- */
+  backBtn.addEventListener('click', () => {
+    const current = steps.findIndex((s) => s.classList.contains('active'));
+    if (current === 2 && cameFromLookup) {
+      showStep(0);
+    } else if (current > 0) {
+      showStep(current - 1);
+    }
+  });
+
+  function resetKiosk() {
+    if (restartTimer) clearTimeout(restartTimer);
+    phoneDigits = '';
+    fullName = '';
+    dobValue = '';
+    cameFromLookup = false;
+    selectedServices = [];
+    selectedDiscountId = '';
+    document.querySelectorAll('.kiosk-step[data-step="2"] .kiosk-service').forEach((c) => c.classList.remove('selected'));
+    document.querySelectorAll('.kiosk-step[data-step="3"] .kiosk-service').forEach((c, i) => c.classList.toggle('selected', i === 0));
+    refreshServiceSummary();
+    serviceContinue.disabled = true;
+    serviceContinue.textContent = 'Continue';
+    discountContinue.disabled = false;
+    discountContinue.textContent = 'Check Me In';
+    nameInput.value = '';
+    if (dobInput) dobInput.value = '';
+    if (giftCardInput) giftCardInput.value = '';
+    refreshPhoneDisplay();
+    subtitles[2] = 'Choose your service';
+    showStep(0);
+  }
+
+  document.getElementById('kiosk-restart').addEventListener('click', resetKiosk);
+
+  refreshPhoneDisplay();
+});

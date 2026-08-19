@@ -1,0 +1,12 @@
+<svg width="200" height="200" viewBox="170 100 160 160" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="crestGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e6cb9e"/>
+      <stop offset="55%" stop-color="#cda06a"/>
+      <stop offset="100%" stop-color="#a97a48"/>
+    </linearGradient>
+  </defs>
+  <rect x="170" y="100" width="160" height="160" rx="28" fill="#0a0a0a"/>
+  <circle cx="250" cy="180" r="72" fill="none" stroke="url(#crestGold)" stroke-width="4"/>
+  <text x="250" y="212" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="88" fill="url(#crestGold)">D</text>
+</svg>

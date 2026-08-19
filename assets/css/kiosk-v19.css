@@ -1,0 +1,358 @@
+/* ==========================================================================
+   Diamond Nails & Spa — Self-service check-in kiosk (dark mode)
+   ========================================================================== */
+
+:root {
+  --k-bg-a: #1ba0c8;
+  --k-bg-b: #0f7fa3;
+  --k-surface: #ffffff;
+  --k-surface-soft: #f8fbfc;
+  --k-border: #d0e8f2;
+  --k-ink: #1f4d5e;
+  --k-ink-soft: #5a7c8a;
+  --k-rose-gold: #1ba0c8;
+  --k-rose-gold-light: #52bde3;
+  --k-plum: #1ba0c8;
+  --k-success: #28a745;
+  --k-danger: #dc3545;
+
+  --k-promo-pink-a: #ffffff;
+  --k-promo-pink-b: #f0f8fb;
+  --k-promo-pink-deep: #d63d7c;
+  --k-promo-pink-ink: #1ba0c8;
+
+  --k-font-display: 'Playfair Display', Georgia, serif;
+  --k-font-body: 'Poppins', -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; touch-action: manipulation; }
+html, body {
+  height: 100%;
+  margin: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+/* iOS/Android touch quirk: taps on an icon *inside* a button sometimes miss
+   the button's hit area. Force all clicks to resolve to the button itself. */
+button svg { pointer-events: none; }
+body {
+  font-family: var(--k-font-body);
+  color: var(--k-ink);
+  background: linear-gradient(135deg, #1ba0c8 0%, #0f7fa3 100%);
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.kiosk-layout {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 28px;
+}
+
+/* ---------------- Promo banner (light pink pop-up style) ---------------- */
+.kiosk-promo-banner {
+  flex: 0 0 auto;
+  max-height: 260px;
+  min-width: 0;
+  background: #ffffff;
+  border: none;
+  border-radius: 48px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  position: relative;
+  overflow: hidden;
+  animation: kioskPromoPop 0.5s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes kioskPromoPop { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+
+/* Image-backed variant: a small, fixed-height photo banner at the top of
+   the card, with the promo text in a plain block below it — this keeps
+   the layout predictable no matter what size/shape photo gets uploaded,
+   instead of trying to fit a tall photo into the whole card. */
+.kiosk-promo-banner.has-image {
+  padding: 0;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  min-height: 0;
+  border: none;
+}
+.kiosk-promo-imgwrap {
+  width: 100%;
+  height: 200px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.kiosk-promo-bgimg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.kiosk-promo-body { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; }
+.kiosk-promo-banner.has-image .kiosk-promo-body {
+  margin: 0;
+  padding: 22px 22px 26px;
+  width: 100%;
+  align-items: center;
+  text-align: center;
+}
+
+.kiosk-promo-badge {
+  display: inline-block;
+  background: var(--k-promo-pink-deep);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 6px 16px;
+  border-radius: 999px;
+  margin-bottom: 14px;
+  box-shadow: 0 8px 18px -8px rgba(214,61,124,0.6);
+}
+.kiosk-promo-text {
+  font-family: var(--k-font-display);
+  font-size: 23px;
+  font-weight: 700;
+  color: var(--k-promo-pink-ink);
+  line-height: 1.4;
+}
+
+.kiosk-card {
+  width: 100%;
+  max-width: 460px;
+  flex: 1 1 auto;
+  background: #ffffff;
+  border: none;
+  border-radius: 48px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  padding: 40px 32px 36px;
+}
+
+@media (max-width: 860px) {
+  .kiosk-layout { flex-direction: column; max-width: 460px; }
+  .kiosk-promo-banner { order: -1; padding: 22px; max-height: 220px; }
+  .kiosk-promo-banner.has-image { padding: 0; }
+  .kiosk-promo-imgwrap { height: 140px; }
+  .kiosk-promo-banner.has-image .kiosk-promo-body { padding: 14px 16px 18px; }
+  .kiosk-promo-text { font-size: 18px; }
+}
+
+/* Tablet-width kiosks mounted in a lobby (older iPad ~768px, Galaxy Tab A8
+   ~800px) — bigger touch targets and text than the phone-sized fallback
+   above, and fills more of the screen instead of a narrow stacked card. */
+@media (min-width: 601px) and (max-width: 860px) {
+  .kiosk-layout { max-width: 680px; gap: 22px; }
+  .kiosk-promo-banner { max-height: 280px; }
+  .kiosk-promo-imgwrap { height: 180px; }
+  .kiosk-card { padding: 40px 36px 32px; }
+  .kiosk-header h1 { font-size: 30px; }
+  .kiosk-emoji { font-size: 48px; }
+  .kiosk-display { font-size: 30px; padding: 22px; min-height: 78px; }
+  .kiosk-keypad { gap: 18px; }
+  .kiosk-key { height: 88px; font-size: 30px; }
+  .kiosk-btn-primary { padding: 24px; font-size: 19px; }
+  .kiosk-service-name { font-size: 19px; }
+  .kiosk-service-meta { font-size: 15px; }
+}
+
+.kiosk-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.kiosk-brand-mark {
+  width: 44px; height: 44px; border-radius: 14px;
+  background: var(--k-surface-soft); border: 1px solid var(--k-border);
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
+}
+.kiosk-back {
+  width: 44px; height: 44px; border-radius: 14px;
+  background: var(--k-surface-soft); border: 1px solid var(--k-border); color: var(--k-ink);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.kiosk-back:active { transform: scale(0.94); }
+
+.kiosk-header { text-align: center; margin: 6px 0 22px; }
+.kiosk-emoji { font-size: 40px; margin-bottom: 6px; }
+.kiosk-header h1 {
+  font-family: var(--k-font-display); font-size: 26px; font-weight: 700;
+  color: var(--k-rose-gold-light); margin: 0 0 8px;
+}
+.kiosk-header p { margin: 0; color: var(--k-ink-soft); font-size: 15px; }
+
+.kiosk-alert {
+  display: none; background: rgba(217,117,108,0.16); color: var(--k-danger);
+  border: 1px solid rgba(217,117,108,0.35); border-radius: 14px; padding: 12px 16px;
+  font-size: 14px; text-align: center; margin-bottom: 16px;
+}
+.kiosk-alert.show { display: block; }
+
+.kiosk-step { display: none; }
+.kiosk-step.active { display: block; animation: kioskFade 0.35s ease; }
+@keyframes kioskFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ---------------- Phone keypad ---------------- */
+.kiosk-display {
+  background: var(--k-surface-soft); border: 1px solid var(--k-border);
+  border-radius: 18px; padding: 18px; text-align: center;
+  font-size: 26px; font-weight: 600; letter-spacing: 0.06em;
+  margin-bottom: 22px; color: var(--k-ink-soft);
+  min-height: 66px; display: flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.25);
+}
+.kiosk-display.filled { color: var(--k-ink); }
+
+.kiosk-keypad {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  margin-bottom: 24px;
+}
+.kiosk-key {
+  position: relative; overflow: hidden;
+  height: 72px; border-radius: 28px; border: none;
+  background: linear-gradient(135deg, #ffc4a0 0%, #ffb380 50%, #d4907d 100%);
+  color: #fff; font-size: 26px; font-weight: 700; font-family: var(--k-font-body);
+  cursor: pointer; box-shadow: 0 10px 28px -10px rgba(212,144,125,0.5);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  display: flex; align-items: center; justify-content: center;
+}
+.kiosk-key::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 40%;
+  background: linear-gradient(rgba(255,255,255,0.3), rgba(255,255,255,0.05));
+  border-radius: 28px 28px 0 0;
+  pointer-events: none;
+}
+.kiosk-key:active { transform: scale(0.94); box-shadow: 0 4px 12px -6px rgba(0,0,0,0.4); }
+.kiosk-key-back { background: #e8f3f8; border: 2px solid #1ba0c8; color: #1ba0c8; }
+.kiosk-key-back::before { display: none; }
+
+/* Touchscreens (iPad/tablet, any orientation) get bigger, more forgiving hit
+   targets — a width-only breakpoint misses landscape iPads (~1024px wide). */
+@media (hover: none) and (pointer: coarse) {
+  .kiosk-key { height: 84px; font-size: 28px; }
+  .kiosk-back, .kiosk-brand-mark { width: 52px; height: 52px; }
+  .kiosk-btn-primary { padding: 22px; }
+  .kiosk-btn-secondary { padding: 18px; }
+  .kiosk-service { padding: 20px 22px; }
+}
+
+/* ---------------- Buttons ---------------- */
+.kiosk-btn-primary {
+  position: relative; overflow: hidden;
+  width: 100%; padding: 20px; border: none; border-radius: 28px;
+  background: linear-gradient(135deg, #35c748 0%, #28a745 100%);
+  color: #fff; font-size: 18px; font-weight: 700; font-family: var(--k-font-body);
+  letter-spacing: 0.02em;
+  cursor: pointer; box-shadow: 0 14px 30px -12px rgba(40,167,69,0.5);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.kiosk-btn-primary::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 50%;
+  background: linear-gradient(rgba(255,255,255,0.25), rgba(255,255,255,0));
+  pointer-events: none;
+}
+.kiosk-btn-primary:active { transform: scale(0.98); }
+.kiosk-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.kiosk-btn-secondary {
+  width: 100%; padding: 16px; margin-top: 10px; border-radius: 24px;
+  background: transparent; border: 2px solid #1ba0c8;
+  color: #1ba0c8; font-size: 15px; font-weight: 700; font-family: var(--k-font-body);
+  cursor: pointer; transition: all 0.15s ease;
+}
+.kiosk-btn-secondary:active { transform: scale(0.98); }
+.kiosk-btn-secondary:disabled { opacity: 0.35; cursor: not-allowed; }
+.kiosk-btn-secondary:not(:disabled):hover { border-color: var(--k-rose-gold); background: rgba(184,131,106,0.1); }
+
+/* ---------------- Name step ---------------- */
+.kiosk-input {
+  width: 100%; padding: 20px; border-radius: 16px; margin-bottom: 22px;
+  background: var(--k-surface-soft); border: 1.5px solid var(--k-border);
+  color: var(--k-ink); font-size: 20px; font-family: var(--k-font-body); text-align: center;
+}
+.kiosk-input:focus { outline: none; border-color: var(--k-rose-gold); }
+.kiosk-input::placeholder { color: var(--k-ink-soft); }
+.kiosk-input-label { text-align: center; color: var(--k-ink-soft); font-size: 12.5px; margin: -8px 0 10px; }
+
+/* ---------------- Service selection ---------------- */
+.kiosk-service-grid { display: grid; gap: 14px; margin-bottom: 22px; max-height: 46vh; overflow-y: auto; }
+.kiosk-service {
+  padding: 18px 20px; border-radius: 16px; border: 1.5px solid var(--k-border);
+  background: var(--k-surface-soft); cursor: pointer; transition: all 0.2s ease;
+}
+.kiosk-service.selected { border-color: var(--k-rose-gold); background: rgba(184,131,106,0.16); box-shadow: 0 0 0 3px rgba(184,131,106,0.18); }
+.kiosk-service-name { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+.kiosk-service-meta { font-size: 13.5px; color: var(--k-ink-soft); }
+.kiosk-service-media { display: flex; align-items: center; gap: 16px; }
+.kiosk-service-thumb { width: 60px; height: 60px; border-radius: 14px; object-fit: cover; flex: none; }
+.kiosk-service-text { min-width: 0; }
+
+/* ---------------- Confirmation ---------------- */
+.kiosk-confirm { text-align: center; padding: 10px 0 26px; }
+.kiosk-confirm-badge {
+  width: 76px; height: 76px; border-radius: 50%; margin: 0 auto 20px;
+  background: linear-gradient(135deg, var(--k-success), #3a5f3d);
+  display: flex; align-items: center; justify-content: center; font-size: 34px; color: #fff;
+  animation: kioskPop 0.5s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes kioskPop { from { transform: scale(0); } to { transform: scale(1); } }
+.kiosk-confirm h2 { font-family: var(--k-font-display); font-size: 22px; margin: 0 0 10px; }
+.kiosk-confirm p { color: var(--k-ink-soft); font-size: 15px; line-height: 1.6; }
+.kiosk-confirm p strong { color: var(--k-rose-gold-light); }
+
+.kiosk-footer { text-align: center; margin-top: 20px; }
+.kiosk-footer a { color: var(--k-ink-soft); font-size: 13.5px; text-decoration: underline; }
+
+.kiosk-stamp-card {
+  margin: 18px auto 4px;
+  max-width: 340px;
+  background: var(--k-surface-soft);
+  border: 1px solid var(--k-border);
+  border-radius: 16px;
+  padding: 18px 16px 14px;
+}
+.kiosk-stamp-card-title {
+  font-size: 13px;
+  color: var(--k-ink-soft);
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+.kiosk-stamp-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.kiosk-stamp {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed var(--k-border);
+  font-size: 15px;
+  color: var(--k-ink-soft);
+}
+.kiosk-stamp.filled {
+  border: none;
+  background: linear-gradient(155deg, var(--k-rose-gold-light), var(--k-rose-gold) 60%, var(--k-plum));
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.kiosk-stamp-note {
+  font-size: 13px;
+  color: var(--k-ink-soft);
+  text-align: center;
+  line-height: 1.5;
+}
+.kiosk-stamp-note strong { color: var(--k-rose-gold-light); }
