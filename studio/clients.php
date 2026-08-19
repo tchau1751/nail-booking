@@ -186,8 +186,8 @@ $csrf = function_exists('admin_csrf_token') ? admin_csrf_token() : '';
   .cw-note{padding:12px 14px;border-radius:8px;margin-bottom:14px;font-size:13px}
   .cw-ok{background:#e8f5e9;color:#1b5e20;border:1px solid #c8e6c9}
   .cw-err{background:#fdecea;color:#8c1d18;border:1px solid #f5c6cb}
-  .cw-nav{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:26px}
-  .cw-nav a{padding:15px;text-align:center;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px}
+  .cw-nav{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px}
+  .cw-nav a{padding:7px;text-align:center;border-radius:6px;text-decoration:none;font-weight:700;font-size:11.5px}
 </style>
 
 <div class="panel">
@@ -197,6 +197,13 @@ $csrf = function_exists('admin_csrf_token') ? admin_csrf_token() : '';
   </div>
 
   <div class="panel-body">
+
+    <div class="cw-nav">
+      <a href="<?= $BP ?>/studio/"                  style="background:#1ba0c8;color:#fff">Bookings</a>
+      <a href="<?= $BP ?>/studio/stamp-cards.php"   style="background:#28a745;color:#fff">Stamp Cards</a>
+      <a href="<?= $BP ?>/studio/stamp-monitor.php" style="background:#ffc107;color:#000">Monitor</a>
+      <a href="<?= $BP ?>/studio/stamp-history.php" style="background:#dc3545;color:#fff">History</a>
+    </div>
 
     <?php foreach ($notices as $n): ?><div class="cw-note cw-ok"><?= h($n) ?></div><?php endforeach; ?>
     <?php foreach ($errors  as $n): ?><div class="cw-note cw-err"><?= h($n) ?></div><?php endforeach; ?>
@@ -282,13 +289,6 @@ $csrf = function_exists('admin_csrf_token') ? admin_csrf_token() : '';
       </table>
     </div>
     <?php endif; ?>
-
-    <div class="cw-nav">
-      <a href="<?= $BP ?>/studio/"                  style="background:#1ba0c8;color:#fff">Bookings</a>
-      <a href="<?= $BP ?>/studio/stamp-cards.php"   style="background:#28a745;color:#fff">Stamp Cards</a>
-      <a href="<?= $BP ?>/studio/stamp-monitor.php" style="background:#ffc107;color:#000">Monitor</a>
-      <a href="<?= $BP ?>/studio/stamp-history.php" style="background:#dc3545;color:#fff">History</a>
-    </div>
 
   </div>
 </div>
