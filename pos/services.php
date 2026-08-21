@@ -1,11 +1,12 @@
 <?php
 // ============================================================
-//  Service photos and turn values.
+//  The service menu.
 //
-//  Prices, durations and descriptions live in the booking admin —
-//  this page owns the two things the salon floor cares about: the
-//  picture on the register tile, and what a service is worth in
-//  the turns rotation.
+//  Name, price, minutes, category, turn value and the photo on the
+//  tile — all of it, in one table you can work down in a sitting.
+//  This used to be split across two applications: the booking admin
+//  owned the prices and the till owned the photos, so setting up a
+//  menu meant doing half of it in each.
 // ============================================================
 $pageTitle = 'Services';
 $activeNav = 'services';
@@ -42,20 +43,61 @@ function storeServiceImage(array $file, int $serviceId): string {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $id = (int)($_POST['id'] ?? 0);
-        if (!fetchOne('SELECT 1 x FROM services WHERE id=?', [$id])) throw new RuntimeException('Service not found.');
+        $action = $_POST['action'] ?? '';
 
-        if (($_POST['action'] ?? '') === 'save') {
-            $url = trim($_POST['image_url'] ?? '');
-            if (!empty($_FILES['image']['name'])) {
-                $url = storeServiceImage($_FILES['image'], $id);
+        if ($action === 'menu') {
+            // The whole price list in one save. Fixing thirty prices one card
+            // at a time is thirty round trips nobody makes.
+            foreach ($_POST['price'] ?? [] as $sid => $_) {
+                $sid = (int)$sid;
+                if (!fetchOne('SELECT 1 x FROM services WHERE id=?', [$sid])) continue;
+                $name = trim((string)($_POST['name'][$sid] ?? ''));
+                if ($name === '') throw new RuntimeException('A service cannot be left without a name.');
+                query('UPDATE services SET name=?, category=?, price=?, duration_minutes=?,
+                       turn_value=?, is_active=?, display_order=? WHERE id=?', [
+                    mb_substr($name, 0, 160),
+                    mb_substr(trim((string)($_POST['category'][$sid] ?? '')) ?: 'Other', 0, 80),
+                    max(0, (float)($_POST['price'][$sid] ?? 0)),
+                    max(0, min(600, (int)($_POST['duration'][$sid] ?? 30))),
+                    max(0, min(9.99, (float)($_POST['turn'][$sid] ?? 1))),
+                    empty($_POST['off'][$sid]) ? 1 : 0,
+                    max(0, min(9999, (int)($_POST['order'][$sid] ?? 0))),
+                    $sid,
+                ]);
             }
-            query('UPDATE services SET image_url=?, turn_value=? WHERE id=?',
-                  [$url, max(0, min(9.99, (float)$_POST['turn_value'])), $id]);
-            $msg = 'Service updated.';
-        } elseif (($_POST['action'] ?? '') === 'clear_image') {
-            query("UPDATE services SET image_url='' WHERE id=?", [$id]);
-            $msg = 'Photo removed.';
+            $msg = 'Menu saved.';
+
+        } elseif ($action === 'add') {
+            $name = trim((string)($_POST['new_name'] ?? ''));
+            if ($name === '') throw new RuntimeException('Give the service a name.');
+            $order = (int)fetchOne('SELECT COALESCE(MAX(display_order),0)+1 v FROM services')['v'];
+            query('INSERT INTO services (name, category, price, duration_minutes, turn_value,
+                                         display_order, is_active, description)
+                   VALUES (?,?,?,?,?,?,1,"")', [
+                mb_substr($name, 0, 160),
+                mb_substr(trim((string)($_POST['new_category'] ?? '')) ?: 'Other', 0, 80),
+                max(0, (float)($_POST['new_price'] ?? 0)),
+                max(0, min(600, (int)($_POST['new_duration'] ?? 30))),
+                max(0, min(9.99, (float)($_POST['new_turn'] ?? 1))),
+                $order,
+            ]);
+            $msg = 'Added ' . $name . '.';
+
+        } else {
+            $id = (int)($_POST['id'] ?? 0);
+            if (!fetchOne('SELECT 1 x FROM services WHERE id=?', [$id])) throw new RuntimeException('Service not found.');
+
+            if ($action === 'save') {
+                $url = trim($_POST['image_url'] ?? '');
+                if (!empty($_FILES['image']['name'])) {
+                    $url = storeServiceImage($_FILES['image'], $id);
+                }
+                query('UPDATE services SET image_url=? WHERE id=?', [$url, $id]);
+                $msg = 'Photo updated.';
+            } elseif ($action === 'clear_image') {
+                query("UPDATE services SET image_url='' WHERE id=?", [$id]);
+                $msg = 'Photo removed.';
+            }
         }
         header('Location: ' . BASE_PATH . '/pos/services.php?m=' . urlencode($msg));
         exit;
@@ -63,18 +105,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 $msg = $msg ?: ($_GET['m'] ?? '');
 $services = fetchAll('SELECT * FROM services ORDER BY display_order, name');
+$categories = array_values(array_filter(array_unique(array_column($services, 'category'))));
+sort($categories);
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-err"><?= e($err) ?></div><?php endif; ?>
 
+<datalist id="catList">
+  <?php foreach ($categories as $c): ?><option value="<?= e($c) ?>"><?php endforeach; ?>
+</datalist>
+
 <div class="card">
-  <h2>💅 Service photos &amp; turns</h2>
+  <h2>💵 The menu</h2>
   <p class="sub">
-    The photo shows on the register tile and on the kiosk, so guests pick by sight.
-    A <strong>turn</strong> is what the service is worth in the rotation — a full set is 1,
-    a quick polish change might be 0.5.
-    Prices and durations are set in the <a href="<?= BASE_PATH ?>/admin/">booking admin</a>.
+    Name, price, minutes and category for every service — the booking site offers these times and
+    the register rings these prices. <strong>Category</strong> is the tab a service appears under at
+    the till. A <strong>turn</strong> is what it is worth in the rotation: a full set is 1, a quick
+    polish change 0.5, a two-hour lash set 2. <strong>Order</strong> sorts the tiles.
+    Untick <strong>On</strong> to take something off the menu without deleting it — old tickets and
+    bookings still point at it.
   </p>
+  <form method="post">
+    <input type="hidden" name="action" value="menu">
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="min-width:180px">Service</th><th style="width:130px">Category</th>
+          <th class="num" style="width:100px">Price</th><th class="num" style="width:90px">Minutes</th>
+          <th class="num" style="width:80px">Turn</th><th class="num" style="width:80px">Order</th>
+          <th style="width:56px">On</th>
+        </tr></thead>
+        <tbody>
+        <?php foreach ($services as $s): $i = (int)$s['id']; ?>
+          <tr<?= $s['is_active'] ? '' : ' style="opacity:.5"' ?>>
+            <td><input type="text" name="name[<?= $i ?>]" value="<?= e($s['name']) ?>" maxlength="160" style="width:100%"></td>
+            <td><input type="text" name="category[<?= $i ?>]" value="<?= e($s['category']) ?>" list="catList" maxlength="80" style="width:100%"></td>
+            <td class="num"><input type="number" name="price[<?= $i ?>]" value="<?= (float)$s['price'] ?>" step="0.01" min="0" style="width:90px"></td>
+            <td class="num"><input type="number" name="duration[<?= $i ?>]" value="<?= (int)$s['duration_minutes'] ?>" step="5" min="0" max="600" style="width:80px"></td>
+            <td class="num"><input type="number" name="turn[<?= $i ?>]" value="<?= (float)$s['turn_value'] ?>" step="0.25" min="0" max="9.99" style="width:70px"></td>
+            <td class="num"><input type="number" name="order[<?= $i ?>]" value="<?= (int)$s['display_order'] ?>" step="1" min="0" style="width:70px"></td>
+            <td style="text-align:center"><input type="checkbox" name="off[<?= $i ?>]" value="1" <?= $s['is_active'] ? '' : 'checked' ?> title="Tick to take it off the menu"></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <button class="btn btn-green btn-lg" type="submit" style="margin-top:14px">Save the menu</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>➕ Add a service</h2>
+  <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:end">
+    <input type="hidden" name="action" value="add">
+    <label class="field" style="margin:0"><span>Name</span>
+      <input type="text" name="new_name" maxlength="160" required placeholder="Gel Pedicure"></label>
+    <label class="field" style="margin:0"><span>Category</span>
+      <input type="text" name="new_category" list="catList" maxlength="80" placeholder="Pedicure"></label>
+    <label class="field" style="margin:0"><span>Price</span>
+      <input type="number" name="new_price" step="0.01" min="0" value="0"></label>
+    <label class="field" style="margin:0"><span>Minutes</span>
+      <input type="number" name="new_duration" step="5" min="0" max="600" value="30"></label>
+    <label class="field" style="margin:0"><span>Turn</span>
+      <input type="number" name="new_turn" step="0.25" min="0" max="9.99" value="1"></label>
+    <button class="btn btn-green" type="submit" style="margin-bottom:12px">Add</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>📷 Photos</h2>
+  <p class="sub">The photo shows on the register tile and on the kiosk, so guests pick by sight.</p>
 </div>
 
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">
@@ -101,8 +201,6 @@ $services = fetchAll('SELECT * FROM services ORDER BY display_order, name');
         <input type="file" name="image" accept="image/*" style="padding:10px"></label>
       <label class="field"><span>…or paste an image link</span>
         <input type="text" name="image_url" value="<?= e($s['image_url']) ?>" placeholder="https://…"></label>
-      <label class="field"><span>Turn value</span>
-        <input type="number" name="turn_value" step="0.25" min="0" max="9.99" value="<?= (float)$s['turn_value'] ?>"></label>
       <button class="btn btn-green btn-sm" type="submit">Save</button>
     </form>
 

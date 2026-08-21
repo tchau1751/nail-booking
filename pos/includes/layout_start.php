@@ -100,7 +100,7 @@ $restActive = isset($navRest[$activeNav]);
       </a>
     <?php endforeach; ?>
     <?php if ($navRest): ?>
-      <details class="navmore"<?= $restActive ? ' open' : '' ?>>
+      <details class="navmore">
         <summary class="<?= $restActive ? 'active' : '' ?>">
           <span class="ico">☰</span><span class="lbl">More</span>
         </summary>
