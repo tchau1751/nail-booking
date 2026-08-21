@@ -80,9 +80,11 @@ function posInstalled(): bool {
 }
 
 // ── Cart ────────────────────────────────────────────────────
-function &cart(): array {
-    startSecureSession();
-    static $defaults = [
+/** How many tickets can sit open at once before the chips stop being readable. */
+const MAX_OPEN_TICKETS = 8;
+
+function cartDefaults(): array {
+    return [
         'lines'          => [],
         'discount_type'  => 'amount',
         'discount_value' => 0,
@@ -98,21 +100,100 @@ function &cart(): array {
         'gift_cards'     => [],
         'note'           => '',
     ];
-    // A till that was left open across an upgrade still holds the old cart
-    // shape in its session — backfill anything the new code expects.
-    if (isset($_SESSION['pos_cart'])) {
-        $_SESSION['pos_cart'] += $defaults;
-    }
-    if (!isset($_SESSION['pos_cart'])) {
-        $_SESSION['pos_cart'] = $defaults;
-    }
-    return $_SESSION['pos_cart'];
 }
 
-function cartReset(): void {
+/**
+ * The ticket in front of you.
+ *
+ * A nail bar runs several at once — one guest at the pedicure chairs, another
+ * at the table, a third waiting to pay — so the session holds a set of tickets
+ * and one of them is active. Everything else in this file works on whichever
+ * that is, which is why the rest of the code did not have to change.
+ */
+function &cart(): array {
     startSecureSession();
-    unset($_SESSION['pos_cart']);
-    cart();   // rebuild it empty so callers always get the full shape
+    if (!isset($_SESSION['pos_carts']) || !is_array($_SESSION['pos_carts'])) {
+        $_SESSION['pos_carts'] = [];
+        // A till left open across the upgrade still holds the single old cart.
+        if (isset($_SESSION['pos_cart'])) {
+            $_SESSION['pos_carts'][1]    = $_SESSION['pos_cart'];
+            $_SESSION['pos_cart_active'] = 1;
+            unset($_SESSION['pos_cart']);
+        }
+    }
+    if (!$_SESSION['pos_carts']) {
+        $_SESSION['pos_carts'][1]    = cartDefaults();
+        $_SESSION['pos_cart_active'] = 1;
+    }
+    $id = $_SESSION['pos_cart_active'] ?? null;
+    if ($id === null || !isset($_SESSION['pos_carts'][$id])) {
+        $id = array_key_first($_SESSION['pos_carts']);
+        $_SESSION['pos_cart_active'] = $id;
+    }
+    // Backfill anything a newer version expects but an older session lacks.
+    $_SESSION['pos_carts'][$id] += cartDefaults();
+    return $_SESSION['pos_carts'][$id];
+}
+
+function cartActiveId(): int {
+    cart();
+    return (int)$_SESSION['pos_cart_active'];
+}
+
+/** Empty the ticket in front of you, leaving it open for the next guest. */
+function cartReset(): void {
+    $id = cartActiveId();
+    $_SESSION['pos_carts'][$id] = cartDefaults();
+}
+
+/** Start a fresh ticket and switch to it. */
+function ticketNew(): int {
+    cart();
+    if (count($_SESSION['pos_carts']) >= MAX_OPEN_TICKETS) {
+        throw new RuntimeException('That is ' . MAX_OPEN_TICKETS . ' tickets open already — finish or clear one first.');
+    }
+    $id = max(array_keys($_SESSION['pos_carts'])) + 1;
+    $_SESSION['pos_carts'][$id]  = cartDefaults();
+    $_SESSION['pos_cart_active'] = $id;
+    return $id;
+}
+
+function ticketSwitch(int $id): void {
+    cart();
+    if (!isset($_SESSION['pos_carts'][$id])) throw new RuntimeException('That ticket is no longer open.');
+    $_SESSION['pos_cart_active'] = $id;
+}
+
+/** Close a ticket outright. There is always at least one left open. */
+function ticketClose(int $id): void {
+    cart();
+    if (!isset($_SESSION['pos_carts'][$id])) return;
+    unset($_SESSION['pos_carts'][$id]);
+    if (!$_SESSION['pos_carts']) {
+        $_SESSION['pos_carts'][1]    = cartDefaults();
+        $_SESSION['pos_cart_active'] = 1;
+        return;
+    }
+    if ((int)($_SESSION['pos_cart_active'] ?? 0) === $id) {
+        $_SESSION['pos_cart_active'] = array_key_first($_SESSION['pos_carts']);
+    }
+}
+
+/** Every open ticket, for the chips along the top of the ticket panel. */
+function ticketList(): array {
+    $active = cartActiveId();
+    $out = [];
+    foreach ($_SESSION['pos_carts'] as $id => $c) {
+        $t = cartTotalsFor($c);
+        $out[] = [
+            'id'     => (int)$id,
+            'count'  => (int)$t['count'],
+            'total'  => (float)$t['total'],
+            'name'   => $c['customer_name'] ?: '',
+            'active' => (int)$id === $active,
+        ];
+    }
+    return $out;
 }
 
 function lineKey(string $type, $refId, float $price, ?int $techId = null): string {
@@ -175,6 +256,29 @@ function cartSetLineTech(string $key, ?int $techId): void {
     }
 }
 
+/**
+ * Type a different price straight onto the line — the off-menu fill, the
+ * half-price fix, the add-on nobody has a button for. Price is part of the
+ * line key, so this re-keys rather than edits in place, and lands on the
+ * matching line if one already exists.
+ */
+function cartSetLinePrice(string $key, float $price): void {
+    $c = &cart();
+    if (!isset($c['lines'][$key])) return;
+    $line = $c['lines'][$key];
+    $line['price'] = round(max(0, $price), 2);
+    unset($c['lines'][$key]);
+    $newKey = $line['type'] === 'giftcard'
+        ? $key
+        : lineKey($line['type'], $line['ref_id'], (float)$line['price'],
+                  $line['technician_id'] ? (int)$line['technician_id'] : null);
+    if (isset($c['lines'][$newKey])) {
+        $c['lines'][$newKey]['qty'] += $line['qty'];
+    } else {
+        $c['lines'][$newKey] = $line;
+    }
+}
+
 /** Service lines still waiting on a technician. Checkout refuses while any remain. */
 function cartLinesMissingTech(): array {
     $missing = [];
@@ -227,7 +331,10 @@ function allocateTips(array $lines, float $tip): array {
 // Recompute every total. Discount is spread across lines pro-rata so
 // tax stays correct on a discounted ticket.
 function cartTotals(): array {
-    $c   = cart();
+    return cartTotalsFor(cart());
+}
+
+function cartTotalsFor(array $c): array {
     $set = posSettings();
     $rate = (float)$set['tax_rate'] / 100;
     $taxServices = (int)$set['tax_services'] === 1;

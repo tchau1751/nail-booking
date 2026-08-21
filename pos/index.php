@@ -129,6 +129,9 @@ $tipPresets = array_filter(array_map('trim', explode(',', posSettings()['tip_pre
     <button class="btn btn-light btn-sm" type="button" id="btnCustomer">Edit</button>
   </div>
 
+  <!-- Open tickets. A nail bar runs several at once, so the till does too. -->
+  <div class="tickets" id="ticketBar"></div>
+
   <div class="lines" id="lines">
     <div class="empty">Tap a service or product to start a ticket.</div>
   </div>

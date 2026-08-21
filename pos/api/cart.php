@@ -71,6 +71,8 @@ function ticketPayload(array $extra = []): array {
                 'points_value' => pointsToMoney((int)$client['points']),
             ] : null,
             'tip_method'     => $c['tip_method'] === 'cash' ? 'cash' : 'card',
+            'ticket_id'      => cartActiveId(),
+            'tickets'        => ticketList(),
             'missing_tech'   => array_values(cartLinesMissingTech()),
             'points_redeem'  => (int)$c['points_redeem'],
             'gift_cards'     => array_values($c['gift_cards']),
@@ -90,6 +92,34 @@ try {
                 jsonOut(['error' => 'That technician is not on the floor.'], 422);
             }
             cartAdd('service', (int)$s['id'], $s['name'], (float)$s['price'], 1, $tech, 1);
+            break;
+
+        case 'ticket_new':
+            ticketNew();
+            break;
+
+        case 'ticket_switch':
+            ticketSwitch((int)$_POST['id']);
+            break;
+
+        case 'ticket_close':
+            ticketClose((int)$_POST['id']);
+            break;
+
+        case 'set_line_price':
+            $c = &cart();
+            $key   = (string)($_POST['key'] ?? '');
+            $price = round((float)($_POST['price'] ?? 0), 2);
+            if (!isset($c['lines'][$key])) jsonOut(['error' => 'That line is no longer on the ticket.'], 404);
+            if ($price <= 0) jsonOut(['error' => 'Enter an amount above zero.'], 422);
+            // Typing a smaller number is a discount however it is spelled, so it
+            // meets the same manager. Typing a bigger one is just an upsell.
+            if ($price < (float)$c['lines'][$key]['price'] && !managerApproved()) {
+                jsonOut(['error' => 'A manager has to approve a lower price.', 'needs_manager' => true], 403);
+            }
+            $lowered = $price < (float)$c['lines'][$key]['price'];
+            cartSetLinePrice($key, $price);
+            if ($lowered && !hasRole('manager')) clearManagerApproval();
             break;
 
         case 'set_line_tech':

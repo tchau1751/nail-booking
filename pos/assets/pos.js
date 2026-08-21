@@ -108,7 +108,8 @@
         '<div class="l-main"><div class="l-name"></div><div class="l-sub"></div></div>' +
         '<div class="stepper"><button type="button" data-act="dec">−</button>' +
         '<span class="qty"></span><button type="button" data-act="inc">＋</button></div>' +
-        '<div class="l-total"></div><button class="l-del" type="button" data-act="del">✕</button>';
+        '<button class="l-total" type="button" data-act="price"></button>' +
+        '<button class="l-del" type="button" data-act="del">✕</button>';
       row.querySelector('.l-name').textContent = l.name;
       row.querySelector('.l-sub').textContent = fmt(l.price) + ' each' +
         (l.discount > 0 ? ' · −' + fmt(l.discount) : '') +
@@ -123,12 +124,19 @@
         row.querySelector('.l-main').appendChild(tb);
       }
       row.querySelector('.qty').textContent = l.qty;
-      row.querySelector('.l-total').textContent = fmt(l.total);
+      var totalBtn = row.querySelector('.l-total');
+      totalBtn.textContent = fmt(l.total);
+      totalBtn.title = 'Tap to change the price';
       row.addEventListener('click', function (ev) {
         var act = ev.target.getAttribute('data-act');
         if (act === 'inc') post('set_qty', { key: l.key, qty: l.qty + 1 }).then(render);
         if (act === 'dec') post('set_qty', { key: l.key, qty: l.qty - 1 }).then(render);
         if (act === 'del') post('remove', { key: l.key }).then(render);
+        if (act === 'price') {
+          openPad('line_price', l.name, '<p class="sub" style="margin:-4px 0 8px">' +
+            'Now ' + fmt(l.price) + ' each. A lower price needs a manager.</p>');
+          padLineKey = l.key;
+        }
         if (act === 'tech') {
           chooseTech('Who did ' + l.name + '?', l.technician_id)
             .then(function (id) { return post('set_line_tech', { key: l.key, technician_id: id }); })
@@ -189,8 +197,44 @@
     $('custSub').textContent = (techName && s.meta.technician_id ? techName : 'No technician') +
       (s.meta.appointment_id ? ' · booking #' + s.meta.appointment_id : '');
 
+    paintTickets(s);
     paintHold();
   }
+
+  /**
+   * One chip per open ticket. Tapping switches, the × closes, + starts another.
+   * The × only appears once there is more than one, because closing the last
+   * ticket just gives you an empty one back and the button would be a lie.
+   */
+  function paintTickets(s) {
+    var bar = $('ticketBar');
+    if (!bar) return;
+    var list = s.meta.tickets || [];
+    var many = list.length > 1;
+    bar.innerHTML = list.map(function (t) {
+      var label = t.name || ('Ticket ' + t.id);
+      var sub = t.count ? ' · ' + fmt(t.total) : ' · empty';
+      return '<button class="tk' + (t.active ? ' on' : '') + '" type="button" data-tk="' + t.id + '">' +
+        '<span>' + label + sub + '</span>' +
+        (many ? '<span class="x" data-close-tk="' + t.id + '">✕</span>' : '') + '</button>';
+    }).join('') + '<button class="tk-add" type="button" id="tkAdd">＋ Ticket</button>';
+  }
+
+  $('ticketBar').addEventListener('click', function (ev) {
+    var x = ev.target.closest('[data-close-tk]');
+    if (x) {
+      ev.stopPropagation();
+      var id = x.getAttribute('data-close-tk');
+      var t = (state.meta.tickets || []).filter(function (a) { return String(a.id) === String(id); })[0];
+      if (t && t.count && !confirm('Close ' + (t.name || 'ticket ' + id) + '? ' +
+          fmt(t.total) + ' on it will be lost.')) return;
+      post('ticket_close', { id: id }).then(render);
+      return;
+    }
+    if (ev.target.closest('#tkAdd')) { post('ticket_new', {}).then(render).catch(function () {}); return; }
+    var chip = ev.target.closest('[data-tk]');
+    if (chip) post('ticket_switch', { id: chip.getAttribute('data-tk') }).then(render).catch(function () {});
+  });
 
   /* ── Catalog ──────────────────────────────────────────── */
   var tiles = Array.prototype.slice.call(document.querySelectorAll('#tiles .tile'));
@@ -264,7 +308,7 @@
   });
 
   /* Numeric pad — reused for custom amount, discount and tip. */
-  var padDigits = '', padMode = null;
+  var padDigits = '', padMode = null, padLineKey = null;
 
   function openPad(mode, title, extraHtml) {
     padMode = mode; padDigits = '';
@@ -357,6 +401,10 @@
         .then(function (s) { close('mPad'); render(s); }).catch(function () {});
     } else if (padMode === 'discount_off') {
       post('set_discount', { type: 'amount', value: 0 }).then(function (s) { close('mPad'); render(s); });
+    } else if (padMode === 'line_price') {
+      withManagerApproval(function () {
+        return post('set_line_price', { key: padLineKey, price: v });
+      }).then(function (s) { close('mPad'); render(s); }).catch(function () {});
     } else if (padMode === 'tip') {
       post('set_tip', { value: v, method: tipMethod }).then(function (s) { close('mPad'); render(s); });
     }
