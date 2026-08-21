@@ -59,7 +59,7 @@ $salon  = settings()['business_name'] ?? 'Nail Salon';
   .foot{margin-top:14px;text-align:center;font-size:13px;color:var(--ink-soft);}
 </style>
 </head>
-<body>
+<body data-theme="<?= e(posTheme()) ?>">
 <form class="signin" method="post" id="pinForm">
   <h1>💎 <?= e($salon) ?></h1>
   <div class="sub">Tap your name, then your PIN.</div>

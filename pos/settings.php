@@ -23,16 +23,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = 'Settings saved.';
         } elseif (($_POST['action'] ?? '') === 'store') {
             query('UPDATE pos_settings SET owner_name=?, owner_email=?, owner_phone=?, license_no=?,
-                   kiosk_welcome=? WHERE id=1', [
+                   kiosk_welcome=?, url_yelp=?, url_google=?, url_facebook=?, url_instagram=?,
+                   theme=? WHERE id=1', [
                 trim($_POST['owner_name']), trim($_POST['owner_email']), trim($_POST['owner_phone']),
                 trim($_POST['license_no']), trim($_POST['kiosk_welcome']),
+                trim($_POST['url_yelp']), trim($_POST['url_google']),
+                trim($_POST['url_facebook']), trim($_POST['url_instagram']),
+                isset(posThemes()[$_POST['theme'] ?? '']) ? $_POST['theme'] : 'black-gold',
             ]);
-            query('UPDATE business_settings SET business_name=?, business_phone=?, business_email=?,
-                   business_address=? WHERE id=1', [
+            query('UPDATE business_settings SET business_name=?, business_phone=?, business_cell=?,
+                   business_email=?, business_address=?, business_city=?, business_state=?,
+                   business_zip=?, timezone=? WHERE id=1', [
                 trim($_POST['business_name']), trim($_POST['business_phone']),
-                trim($_POST['business_email']), trim($_POST['business_address']),
+                trim($_POST['business_cell']), trim($_POST['business_email']),
+                trim($_POST['business_address']), trim($_POST['business_city']),
+                trim($_POST['business_state']), trim($_POST['business_zip']),
+                in_array($_POST['timezone'] ?? '', timezone_identifiers_list(), true)
+                    ? $_POST['timezone']
+                    : (settings()['timezone'] ?? 'America/New_York'),
             ]);
             $msg = 'Store information saved.';
+        } elseif (($_POST['action'] ?? '') === 'hours') {
+            // A day that is closed keeps whatever times were last typed, so
+            // ticking it back open does not mean retyping them.
+            foreach ($_POST['open'] ?? [] as $weekday => $_) {
+                $w = (int)$weekday;
+                if ($w < 0 || $w > 6) continue;
+                query('UPDATE business_hours SET is_open=?, start_time=?, end_time=? WHERE weekday=?', [
+                    empty($_POST['closed'][$w]) ? 1 : 0,
+                    $_POST['open'][$w] ?: '09:00',
+                    $_POST['close'][$w] ?: '19:00',
+                    $w,
+                ]);
+            }
+            $msg = 'Business hours saved.';
         } elseif (($_POST['action'] ?? '') === 'loyalty') {
             query('UPDATE pos_settings SET loyalty_enabled=?, points_per_dollar=?, point_value_cents=?,
                    points_min_redeem=?, feedback_enabled=? WHERE id=1', [
@@ -83,7 +107,8 @@ $policies = fetchAll('SELECT * FROM pos_consent_templates ORDER BY id');
 
 <div class="card">
   <h2>🏪 Store &amp; owner</h2>
-  <p class="sub">Shown on receipts, the kiosk and every policy or consent form.</p>
+  <p class="sub">Shown on receipts, the kiosk and every policy or consent form. The review links are
+     what the thank-you text sends guests to.</p>
   <form method="post">
     <input type="hidden" name="action" value="store">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
@@ -91,13 +116,99 @@ $policies = fetchAll('SELECT * FROM pos_consent_templates ORDER BY id');
       <label class="field"><span>Owner name</span><input type="text" name="owner_name" value="<?= e($s['owner_name']) ?>"></label>
       <label class="field"><span>Owner email</span><input type="text" name="owner_email" value="<?= e($s['owner_email']) ?>"></label>
       <label class="field"><span>Owner phone</span><input type="text" name="owner_phone" value="<?= e($s['owner_phone']) ?>"></label>
-      <label class="field"><span>Salon phone</span><input type="text" name="business_phone" value="<?= e($biz['business_phone'] ?? '') ?>"></label>
+      <label class="field"><span>Shop phone</span><input type="text" name="business_phone" value="<?= e($biz['business_phone'] ?? '') ?>"></label>
+      <label class="field"><span>Cell phone</span><input type="text" name="business_cell" value="<?= e($biz['business_cell'] ?? '') ?>" placeholder="After hours"></label>
       <label class="field"><span>Salon email</span><input type="text" name="business_email" value="<?= e($biz['business_email'] ?? '') ?>"></label>
       <label class="field"><span>Licence / certification no.</span><input type="text" name="license_no" value="<?= e($s['license_no']) ?>" placeholder="State licence number"></label>
-      <label class="field"><span>Kiosk welcome line</span><input type="text" name="kiosk_welcome" value="<?= e($s['kiosk_welcome']) ?>"></label>
     </div>
-    <label class="field"><span>Address</span><textarea name="business_address" rows="2"><?= e($biz['business_address'] ?? '') ?></textarea></label>
+
+    <label class="field"><span>Street address</span>
+      <input type="text" name="business_address" value="<?= e($biz['business_address'] ?? '') ?>" placeholder="6830 Stockton Blvd. #200"></label>
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px">
+      <label class="field"><span>City</span><input type="text" name="business_city" value="<?= e($biz['business_city'] ?? '') ?>"></label>
+      <label class="field"><span>State</span><input type="text" name="business_state" value="<?= e($biz['business_state'] ?? '') ?>" maxlength="40" placeholder="CA"></label>
+      <label class="field"><span>ZIP</span><input type="text" name="business_zip" value="<?= e($biz['business_zip'] ?? '') ?>" maxlength="20"></label>
+    </div>
+
+    <h3 style="font-size:15px;margin:14px 0 8px">Where guests leave reviews</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
+      <label class="field"><span>Yelp</span><input type="url" name="url_yelp" value="<?= e($s['url_yelp'] ?? '') ?>" placeholder="https://www.yelp.com/biz/…"></label>
+      <label class="field"><span>Google review</span><input type="url" name="url_google" value="<?= e($s['url_google'] ?? '') ?>" placeholder="https://g.page/…/review"></label>
+      <label class="field"><span>Facebook</span><input type="url" name="url_facebook" value="<?= e($s['url_facebook'] ?? '') ?>" placeholder="https://www.facebook.com/…"></label>
+      <label class="field"><span>Instagram</span><input type="url" name="url_instagram" value="<?= e($s['url_instagram'] ?? '') ?>" placeholder="https://www.instagram.com/…"></label>
+    </div>
+
+    <h3 style="font-size:15px;margin:18px 0 8px">Timezone</h3>
+    <p class="sub" style="margin:0 0 10px">Every closing time, appointment and report is read in this
+       zone. Change it and today's figures shift with it.</p>
+    <label class="field" style="max-width:360px">
+      <select name="timezone">
+        <?php
+        $zoneNow = $biz['timezone'] ?? 'America/New_York';
+        $zones = ['America/New_York' => 'Eastern', 'America/Chicago' => 'Central',
+                  'America/Denver' => 'Mountain', 'America/Phoenix' => 'Arizona',
+                  'America/Los_Angeles' => 'Pacific', 'America/Anchorage' => 'Alaska',
+                  'Pacific/Honolulu' => 'Hawaii'];
+        if (!isset($zones[$zoneNow])) $zones[$zoneNow] = $zoneNow;
+        foreach ($zones as $zid => $label): ?>
+          <option value="<?= e($zid) ?>" <?= $zoneNow === $zid ? 'selected' : '' ?>>
+            <?= e($label) ?> — <?= e($zid) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </label>
+
+    <h3 style="font-size:15px;margin:18px 0 8px">Colour theme</h3>
+    <p class="sub" style="margin:0 0 10px">Changes the till, not the receipt. Red still means a void
+       and green still means paid in every scheme.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+      <?php $themeNow = $s['theme'] ?? 'black-gold';
+      foreach (posThemes() as $key => $t): ?>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;
+                      border:2px solid <?= $themeNow === $key ? 'var(--ink)' : 'var(--line)' ?>;
+                      border-radius:var(--radius);background:var(--card)">
+          <input type="radio" name="theme" value="<?= e($key) ?>" <?= $themeNow === $key ? 'checked' : '' ?>>
+          <span style="font-weight:700"><?= e($t[0]) ?></span>
+          <span style="display:flex;border-radius:6px;overflow:hidden;border:1px solid var(--line)">
+            <?php foreach ($t[1] as $swatch): ?>
+              <span style="width:22px;height:22px;background:<?= e($swatch) ?>"></span>
+            <?php endforeach; ?>
+          </span>
+        </label>
+      <?php endforeach; ?>
+    </div>
+
     <button class="btn btn-green" type="submit">Save store information</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>🕒 Business hours</h2>
+  <p class="sub">The booking site offers appointments inside these hours, and the kiosk uses them to
+     tell a walk-in whether the shop is still open. Untick a day to close it — the times stay put so
+     ticking it back open does not mean retyping them.</p>
+  <form method="post">
+    <input type="hidden" name="action" value="hours">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Day</th><th style="width:110px">Open?</th><th>From</th><th>To</th></tr></thead>
+        <tbody>
+        <?php
+        $dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        foreach (fetchAll('SELECT * FROM business_hours ORDER BY weekday') as $h):
+          $w = (int)$h['weekday']; ?>
+          <tr>
+            <td><strong><?= e($dayNames[$w] ?? $w) ?></strong></td>
+            <td><label style="font-weight:700">
+              <input type="checkbox" name="closed[<?= $w ?>]" <?= $h['is_open'] ? '' : 'checked' ?>>
+              Closed</label></td>
+            <td><input type="time" name="open[<?= $w ?>]" value="<?= e(substr((string)$h['start_time'], 0, 5)) ?>"></td>
+            <td><input type="time" name="close[<?= $w ?>]" value="<?= e(substr((string)$h['end_time'], 0, 5)) ?>"></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <button class="btn btn-green" type="submit" style="margin-top:14px">Save business hours</button>
   </form>
 </div>
 

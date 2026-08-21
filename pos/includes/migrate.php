@@ -130,6 +130,22 @@ function migratePos(): array {
         }
     }
 
+    // Storefront details the receipt, the kiosk and the review request all
+    // want to show: an address a delivery driver could use, a cell number for
+    // after hours, and the places guests are asked to leave a review.
+    addColumn('business_settings', 'business_city',  "VARCHAR(120) NOT NULL DEFAULT ''", $log);
+    addColumn('business_settings', 'business_state', "VARCHAR(40)  NOT NULL DEFAULT ''", $log);
+    addColumn('business_settings', 'business_zip',   "VARCHAR(20)  NOT NULL DEFAULT ''", $log);
+    addColumn('business_settings', 'business_cell',  "VARCHAR(40)  NOT NULL DEFAULT ''", $log);
+
+    addColumn('pos_settings', 'url_yelp',      "VARCHAR(255) NOT NULL DEFAULT ''", $log);
+    addColumn('pos_settings', 'url_google',    "VARCHAR(255) NOT NULL DEFAULT ''", $log);
+    addColumn('pos_settings', 'url_facebook',  "VARCHAR(255) NOT NULL DEFAULT ''", $log);
+    addColumn('pos_settings', 'url_instagram', "VARCHAR(255) NOT NULL DEFAULT ''", $log);
+
+    // Which of the built-in colour schemes the till wears.
+    addColumn('pos_settings', 'theme', "VARCHAR(30) NOT NULL DEFAULT 'black-gold'", $log);
+
     // Seed the number counters from whatever is already on the books, or the
     // first sale after this upgrade would try to reuse today's 0001.
     if (tableExists('pos_counters') && tableExists('pos_sales')) {

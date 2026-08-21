@@ -49,6 +49,27 @@ function posSettings(): array {
     return $s;
 }
 
+/** The colour schemes the till can wear, in the order Settings lists them. */
+function posThemes(): array {
+    return [
+        'black-gold'     => ['Black & Gold',     ['#1c1c1e', '#b8912f', '#f5f4f1']],
+        'green-salmon'   => ['Green & Salmon',   ['#1f4d3a', '#e98b73', '#f2f8f4']],
+        'blue-lavender'  => ['Blue & Lavender',  ['#16345c', '#8b83c9', '#f3f6fb']],
+        'burgundy-beige' => ['Burgundy & Beige', ['#5c1f2b', '#c2a181', '#faf5f1']],
+        'pink-aqua'      => ['Pink & Aqua',      ['#8a1f5c', '#1fb6c9', '#fdf4f9']],
+    ];
+}
+
+function posTheme(): string {
+    $t = (string)(posSettings()['theme'] ?? 'black-gold');
+    return isset(posThemes()[$t]) ? $t : 'black-gold';
+}
+
+/** The dark colour of the chosen scheme, for the browser chrome meta tag. */
+function posThemeColor(): string {
+    return posThemes()[posTheme()][1][0];
+}
+
 function money($n): string {
     return posSettings()['currency_symbol'] . number_format((float)$n, 2);
 }

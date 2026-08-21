@@ -2,13 +2,49 @@
    Diamond Nail POS — tablet-first (designed for 1024×768 and up,
    works down to a phone). Every tap target is >= 48px.
    ============================================================ */
+
+/* ── Colour ──────────────────────────────────────────────────
+   --ink carries double duty: body text AND the top bar and primary
+   buttons behind white text. So every theme's --ink has to be dark
+   enough to read white on and dark enough to read as text. --gold is
+   the accent, --bg the room the page sits in, --soft the quiet fill
+   under secondary buttons.
+
+   --red, --green and --amber are meaning, not decoration: refunds and
+   voids are red in every theme, because a technician learning a second
+   salon's till should not have to relearn what red means.
+
+   The five schemes are chosen in Settings; the body carries the choice
+   as data-theme and each block below only restates what changes.
+   ------------------------------------------------------------ */
 :root{
-  --ink:#f8058b; --ink-soft:#130101; --line:#e26f1d;
-  --bg:#0fd6e4; --card:#f2f7f844; --gold:#d16e0c; --green:#521d04;
-  --red:#da0a0a; --blue:#362704; --amber:#4b3a06;
-  --radius:14px; --shadow:0 1px 3px rgba(12, 11, 11, 0.1);
+  --ink:#3a2a24; --ink-soft:#7b6a62; --line:#e7ded8;
+  --bg:#f6f1ed; --card:#fff; --soft:#efe9e5; --gold:#c9a87d;
+  --green:#1f7a4c; --red:#c0392b; --blue:#2c5d8a; --amber:#e0a11b;
+  --radius:14px; --shadow:0 1px 3px rgba(0,0,0,.1);
   --topbar-h:64px;
 }
+body[data-theme="black-gold"]{
+  --ink:#1c1c1e; --ink-soft:#6f6f76; --line:#e2e0dc;
+  --bg:#f5f4f1; --soft:#eceae5; --gold:#b8912f; --amber:#d4a017;
+}
+body[data-theme="green-salmon"]{
+  --ink:#1f4d3a; --ink-soft:#5f7a6e; --line:#dce8e1;
+  --bg:#f2f8f4; --soft:#e4efe8; --gold:#e98b73; --amber:#e07a5f;
+}
+body[data-theme="blue-lavender"]{
+  --ink:#16345c; --ink-soft:#5f7391; --line:#dde5f0;
+  --bg:#f3f6fb; --soft:#e5ecf6; --gold:#8b83c9; --blue:#2f6fb5; --amber:#c9a227;
+}
+body[data-theme="burgundy-beige"]{
+  --ink:#5c1f2b; --ink-soft:#8a6b70; --line:#e9dfd8;
+  --bg:#faf5f1; --soft:#eee3da; --gold:#c2a181; --amber:#c98a2e;
+}
+body[data-theme="pink-aqua"]{
+  --ink:#8a1f5c; --ink-soft:#98718a; --line:#f0dce8;
+  --bg:#fdf4f9; --soft:#f7e3ee; --gold:#1fb6c9; --blue:#1796a8; --amber:#d98cb5;
+}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;}
 body{
@@ -64,9 +100,9 @@ a{color:inherit;}
 .btn-sm{min-height:38px;padding:0 14px;font-size:13px;border-radius:9px;}
 .btn-lg{min-height:64px;font-size:19px;}
 .btn-green{background:var(--green);} .btn-red{background:var(--red);}
-.btn-blue{background:var(--blue);}   .btn-amber{background:var(--amber);color:#3a2a24;}
+.btn-blue{background:var(--blue);}   .btn-amber{background:var(--amber);color:var(--ink);}
 .btn-gold{background:var(--gold);}
-.btn-light{background:#efe9e5;color:var(--ink);}
+.btn-light{background:var(--soft);color:var(--ink);}
 .btn-ghost{background:rgba(255,255,255,.14);min-height:38px;padding:0 12px;font-size:13px;}
 .btn[disabled]{opacity:.45;pointer-events:none;}
 /* display:inline-flex above outranks the browser's own [hidden]{display:none},

@@ -67,7 +67,7 @@ foreach ($navItems as $k => $v) {
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#3a2a24">
+<meta name="theme-color" content="<?= e(posThemeColor()) ?>">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="POS">
 <title><?= e($pageTitle) ?> — Diamond Nail POS</title>
@@ -76,7 +76,7 @@ foreach ($navItems as $k => $v) {
 <link rel="apple-touch-icon" href="<?= BASE_PATH ?>/pos/assets/icons/icon-180.png">
 <link rel="stylesheet" href="<?= BASE_PATH ?>/pos/assets/pos.css?v=<?= @filemtime(__DIR__ . '/../assets/pos.css') ?>">
 </head>
-<body class="<?= $fullBleed ? 'is-fullbleed' : '' ?>">
+<body data-theme="<?= e(posTheme()) ?>" class="<?= $fullBleed ? 'is-fullbleed' : '' ?>">
 
 <header class="topbar">
   <div class="brand">💎 <span>Diamond POS</span></div>

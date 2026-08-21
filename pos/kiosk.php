@@ -24,7 +24,7 @@ $hasQr    = is_file($qrFile);
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#502e02ff">
+<meta name="theme-color" content="#083c42">
 <title>Welcome — <?= e($biz['business_name'] ?? 'Nail Salon') ?></title>
 <link rel="manifest" href="<?= BASE_PATH ?>/pos/manifest.php">
 <link rel="apple-touch-icon" href="<?= BASE_PATH ?>/pos/assets/icons/icon-180.png">
