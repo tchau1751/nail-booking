@@ -19,19 +19,27 @@ $byMethod = fetchAll("SELECT p.method, COUNT(*) c, SUM(p.amount) amt
                       WHERE s.status='completed' AND DATE(s.created_at) BETWEEN ? AND ?
                       GROUP BY p.method ORDER BY amt DESC", $rng);
 
+// Attribution is line-level here exactly as it is in Payroll. The two pages
+// used to disagree — Reports fell back to the ticket's technician, Payroll did
+// not — and a payout report nobody can reconcile is worse than none.
 $byTech = fetchAll("SELECT COALESCE(t.name,'Unassigned') tech, COUNT(DISTINCT i.sale_id) tickets,
                            SUM(i.line_total) revenue
                     FROM pos_sale_items i
                     JOIN pos_sales s ON s.id=i.sale_id
-                    LEFT JOIN technicians t ON t.id = COALESCE(i.technician_id, s.technician_id)
+                    LEFT JOIN technicians t ON t.id = i.technician_id
                     WHERE s.status='completed' AND DATE(s.created_at) BETWEEN ? AND ?
                     GROUP BY tech ORDER BY revenue DESC", $rng);
 
-$tipsByTech = fetchAll("SELECT COALESCE(t.name,'Unassigned') tech, COUNT(*) tickets,
-                               SUM(s.tip_total) tips,
-                               AVG(CASE WHEN s.subtotal > 0 THEN s.tip_total / s.subtotal * 100 END) pct
-                        FROM pos_sales s LEFT JOIN technicians t ON t.id = s.technician_id
-                        WHERE s.status='completed' AND s.tip_total > 0
+$tipsByTech = fetchAll("SELECT COALESCE(t.name,'Unassigned') tech,
+                               COUNT(DISTINCT i.sale_id) tickets,
+                               SUM(i.tip) tips,
+                               SUM(CASE WHEN s.tip_method='cash' THEN i.tip ELSE 0 END) tips_cash,
+                               AVG(CASE WHEN i.line_total - i.tax > 0
+                                        THEN i.tip / (i.line_total - i.tax) * 100 END) pct
+                        FROM pos_sale_items i
+                        JOIN pos_sales s ON s.id = i.sale_id
+                        LEFT JOIN technicians t ON t.id = i.technician_id
+                        WHERE s.status='completed' AND i.tip > 0
                           AND DATE(s.created_at) BETWEEN ? AND ?
                         GROUP BY tech ORDER BY tips DESC", $rng);
 
@@ -69,18 +77,27 @@ $cogs = (float)(fetchOne("SELECT COALESCE(SUM(p.cost * i.qty),0) v
                           WHERE i.item_type='product' AND s.status='completed'
                             AND DATE(s.created_at) BETWEEN ? AND ?", $rng)['v'] ?? 0);
 
+$supplyOn   = (int)(posSettings()['supply_fee_enabled'] ?? 0) === 1;
 $commission = 0.0;
-foreach (fetchAll("SELECT t.commission_rate, t.pay_type,
+$supplyKept = 0.0;
+foreach (fetchAll("SELECT t.commission_rate, t.pay_type, t.supply_fee_rate,
                           COALESCE(SUM(i.line_total - i.tax),0) rev
                    FROM pos_sale_items i
                    JOIN pos_sales s ON s.id=i.sale_id
                    JOIN technicians t ON t.id = i.technician_id
                    WHERE i.item_type='service' AND s.status='completed'
                      AND DATE(s.created_at) BETWEEN ? AND ?
-                   GROUP BY t.id, t.commission_rate, t.pay_type", $rng) as $c) {
+                   GROUP BY t.id, t.commission_rate, t.pay_type, t.supply_fee_rate", $rng) as $c) {
     if ($c['pay_type'] === 'commission') $commission += (float)$c['rev'] * (float)$c['commission_rate'] / 100;
+    // Charged on the chair's takings and withheld from the payout, so it comes
+    // straight back off the wage bill. Booth renters buy their own.
+    if ($supplyOn && $c['pay_type'] !== 'booth') {
+        $supplyKept += (float)$c['rev'] * (float)$c['supply_fee_rate'] / 100;
+    }
 }
 $commission = round($commission, 2);
+$supplyKept = round($supplyKept, 2);
+$commission = round($commission - $supplyKept, 2);
 
 $expenses   = fetchAll('SELECT category, SUM(amount) v FROM pos_expenses
                         WHERE expense_date BETWEEN ? AND ? GROUP BY category ORDER BY v DESC', $rng);
@@ -145,7 +162,8 @@ $netProfit  = round($netRevenue - $cogs - $commission - $expenseTot, 2);
     <table>
       <?php foreach ($tipsByTech as $t): ?>
         <tr><td><?= e($t['tech']) ?>
-              <span style="color:var(--ink-soft)"><?= (int)$t['tickets'] ?> tickets · avg <?= number_format((float)$t['pct'], 1) ?>%</span></td>
+              <span style="color:var(--ink-soft)"><?= (int)$t['tickets'] ?> tickets · avg <?= number_format((float)$t['pct'], 1) ?>%
+              <?php if ((float)$t['tips_cash'] > 0): ?> · <?= money($t['tips_cash']) ?> in cash<?php endif; ?></span></td>
             <td class="num"><?= money($t['tips']) ?></td></tr>
       <?php endforeach; ?>
       <?php if (!$tipsByTech): ?><tr><td style="color:var(--ink-soft)">No tips in this range.</td></tr><?php endif; ?>

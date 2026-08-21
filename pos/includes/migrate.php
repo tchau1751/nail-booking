@@ -94,6 +94,21 @@ function migratePos(): array {
     addColumn('technicians', 'pay_type',        "ENUM('commission','booth','hourly') NOT NULL DEFAULT 'commission'", $log);
     addColumn('technicians', 'hourly_rate',     'DECIMAL(8,2) NOT NULL DEFAULT 0.00', $log);
 
+    // Supply fee: the shop's cut for polish, tips-out on product, files and
+    // acetone. Charged as a percentage of the ticket the technician worked
+    // and taken off their commission — the rate is per person because it is
+    // negotiated per person. Off by default; a shop that does not charge one
+    // should never see the column.
+    addColumn('technicians', 'supply_fee_rate', 'DECIMAL(5,2) NOT NULL DEFAULT 0.00', $log);
+    addColumn('pos_settings', 'supply_fee_enabled', 'TINYINT(1) NOT NULL DEFAULT 0', $log);
+
+    // Tips belong to whoever did the work, so they are carried on the line
+    // item — not on the ticket, which cannot split between two technicians.
+    // How the tip was handed over decides whether payroll owes it: cash tips
+    // went straight into the technician's pocket at the chair.
+    addColumn('pos_sale_items', 'tip', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00', $log);
+    addColumn('pos_sales', 'tip_method', "ENUM('cash','card') NOT NULL DEFAULT 'card'", $log);
+
     // A turn is the unit of fairness in the rotation: a full set counts
     // as a whole turn, a quick polish change as a half.
     addColumn('services', 'turn_value', 'DECIMAL(4,2) NOT NULL DEFAULT 1.00', $log);

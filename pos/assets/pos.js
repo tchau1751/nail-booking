@@ -8,6 +8,7 @@
 
   var api = POS.api, cur = POS.currency;
   var state = null;                 // last ticket payload from the server
+  var lastTech = null;              // pre-selects the picker; a ticket is usually one person
   var HOLD_KEY = 'pos_held_ticket';
 
   var $ = function (id) { return document.getElementById(id); };
@@ -45,6 +46,35 @@
     });
   }
 
+  /**
+   * Ask who is doing the work. Resolves with a technician id, or rejects if
+   * the till is dismissed — the caller then leaves the ticket untouched.
+   * Modelled on the shop's old POS: pick, and it commits on the tap.
+   */
+  function chooseTech(title, currentId) {
+    return new Promise(function (resolve, reject) {
+      $('techTitle').textContent = title || 'Choose technician';
+      $('techChoices').innerHTML = POS.techs.map(function (t) {
+        return '<button class="chip' + (String(t.id) === String(currentId) ? ' active' : '') +
+               '" type="button" data-tech="' + t.id + '">' + t.name + '</button>';
+      }).join('') || '<div class="empty">No active technicians — add one under Staff.</div>';
+
+      var box = $('mTech');
+      function cleanup() {
+        box.removeEventListener('click', onClick);
+        box.classList.remove('open');
+      }
+      function onClick(ev) {
+        var c = ev.target.closest('[data-tech]');
+        if (c) { cleanup(); resolve(parseInt(c.getAttribute('data-tech'), 10)); return; }
+        // Cancel, the backdrop, or Esc — all mean "changed my mind".
+        if (ev.target.hasAttribute('data-close') || ev.target === box) { cleanup(); reject(); }
+      }
+      box.addEventListener('click', onClick);
+      box.classList.add('open');
+    });
+  }
+
   function toast(msg) {
     var t = $('posToast');
     if (!t) {
@@ -63,6 +93,7 @@
   /* ── Painting ─────────────────────────────────────────── */
   function render(s) {
     state = s;
+    if (!lastTech && s.meta && s.meta.technician_id) lastTech = s.meta.technician_id;
     var box = $('lines');
     box.innerHTML = '';
     if (!s.lines.length) {
@@ -77,7 +108,18 @@
         '<span class="qty"></span><button type="button" data-act="inc">＋</button></div>' +
         '<div class="l-total"></div><button class="l-del" type="button" data-act="del">✕</button>';
       row.querySelector('.l-name').textContent = l.name;
-      row.querySelector('.l-sub').textContent = fmt(l.price) + ' each' + (l.discount > 0 ? ' · −' + fmt(l.discount) : '');
+      row.querySelector('.l-sub').textContent = fmt(l.price) + ' each' +
+        (l.discount > 0 ? ' · −' + fmt(l.discount) : '') +
+        (l.tip > 0 ? ' · tip ' + fmt(l.tip) : '');
+      // Only services are somebody's work. Retail belongs to the shop.
+      if (l.type === 'service') {
+        var tb = document.createElement('button');
+        tb.type = 'button';
+        tb.className = 'l-tech' + (l.needs_tech ? ' missing' : '');
+        tb.setAttribute('data-act', 'tech');
+        tb.textContent = l.technician || '⚠ Choose technician';
+        row.querySelector('.l-main').appendChild(tb);
+      }
       row.querySelector('.qty').textContent = l.qty;
       row.querySelector('.l-total').textContent = fmt(l.total);
       row.addEventListener('click', function (ev) {
@@ -85,6 +127,12 @@
         if (act === 'inc') post('set_qty', { key: l.key, qty: l.qty + 1 }).then(render);
         if (act === 'dec') post('set_qty', { key: l.key, qty: l.qty - 1 }).then(render);
         if (act === 'del') post('remove', { key: l.key }).then(render);
+        if (act === 'tech') {
+          chooseTech('Who did ' + l.name + '?', l.technician_id)
+            .then(function (id) { return post('set_line_tech', { key: l.key, technician_id: id }); })
+            .then(render)
+            .catch(function () {});
+        }
       });
       box.appendChild(row);
     });
@@ -109,8 +157,12 @@
     $('grandLabel').textContent = tendered > 0 ? 'Still due' : 'Total';
     $('tTotal').textContent = fmt(tendered > 0 ? t.due : t.total);
 
-    $('btnPay').disabled = s.count < 1;
+    var unassigned = (s.meta.missing_tech || []).length;
+    $('btnPay').disabled = s.count < 1 || unassigned > 0;
     if (s.count < 1) $('btnPay').textContent = 'Charge —';
+    else if (unassigned > 0) $('btnPay').textContent = unassigned === 1
+      ? 'Choose a technician first'
+      : 'Choose technicians first (' + unassigned + ')';
     else if (t.due <= 0) $('btnPay').textContent = 'Finish — paid in full';
     else $('btnPay').textContent = 'Charge ' + fmt(t.due);
 
@@ -186,7 +238,19 @@
     var kind = tile.getAttribute('data-kind'), id = tile.getAttribute('data-id');
     if (tile.classList.contains('out')) return toast('Out of stock — sell it anyway from Products.');
     var action = { product: 'add_product', appointment: 'load_appointment', checkin: 'load_checkin' }[kind] || 'add_service';
-    post(action, { id: id }).then(render).catch(function () {});
+    if (action !== 'add_service') {
+      post(action, { id: id }).then(render).catch(function () {});
+      return;
+    }
+    // Asked every time, because a ticket routinely spans two chairs. The last
+    // person picked comes up highlighted, so the common case is one tap.
+    chooseTech('Who is doing ' + (tile.querySelector('.t-name') || {}).textContent + '?', lastTech)
+      .then(function (techId) {
+        lastTech = techId;
+        return post('add_service', { id: id, technician_id: techId });
+      })
+      .then(render)
+      .catch(function () {});
   });
 
   /* ── Modals ───────────────────────────────────────────── */
@@ -240,15 +304,30 @@
       paintPad();
     });
   });
+  var tipMethod = 'card';
   $('btnTip').addEventListener('click', function () {
     var sub = state ? state.totals.subtotal - state.totals.discount : 0;
+    tipMethod = (state && state.meta.tip_method) || 'card';
     var chips = POS.tipPresets.map(function (p) {
       return '<button class="chip" type="button" data-tip="' + (sub * p / 100).toFixed(2) + '">' + p + '% · ' + fmt(sub * p / 100) + '</button>';
     }).join('') + '<button class="chip" type="button" data-tip="0">No tip</button>';
-    openPad('tip', 'Tip', '<div class="chips" id="tipChips">' + chips + '</div>');
+    // Cash or card is not cosmetic: a cash tip is already in the technician's
+    // pocket, a card tip is money the shop still owes them on payday.
+    var methods = '<div class="chips" id="tipMethods" style="margin-bottom:10px">' +
+      '<button class="chip' + (tipMethod === 'card' ? ' active' : '') + '" type="button" data-tm="card">💳 On the card</button>' +
+      '<button class="chip' + (tipMethod === 'cash' ? ' active' : '') + '" type="button" data-tm="cash">💵 Cash in hand</button>' +
+      '</div>';
+    openPad('tip', 'Tip', methods + '<div class="chips" id="tipChips">' + chips + '</div>');
+    $('tipMethods').addEventListener('click', function (ev) {
+      var c = ev.target.closest('.chip'); if (!c) return;
+      document.querySelectorAll('#tipMethods .chip').forEach(function (x) { x.classList.remove('active'); });
+      c.classList.add('active');
+      tipMethod = c.getAttribute('data-tm');
+    });
     $('tipChips').addEventListener('click', function (ev) {
       var c = ev.target.closest('.chip'); if (!c) return;
-      post('set_tip', { value: c.getAttribute('data-tip') }).then(function (s) { close('mPad'); render(s); });
+      post('set_tip', { value: c.getAttribute('data-tip'), method: tipMethod })
+        .then(function (s) { close('mPad'); render(s); });
     });
   });
 
@@ -267,7 +346,7 @@
     } else if (padMode === 'discount_off') {
       post('set_discount', { type: 'amount', value: 0 }).then(function (s) { close('mPad'); render(s); });
     } else if (padMode === 'tip') {
-      post('set_tip', { value: v }).then(function (s) { close('mPad'); render(s); });
+      post('set_tip', { value: v, method: tipMethod }).then(function (s) { close('mPad'); render(s); });
     }
   });
 
@@ -318,7 +397,11 @@
     held.lines.forEach(function (l) {
       chain = chain.then(function () {
         if (l.type === 'custom') return post('add_custom', { name: l.name, price: l.price });
-        return post(l.type === 'product' ? 'add_product' : 'add_service', { id: l.ref_id || l.key.split(':')[1] })
+        // Resuming has to bring the technician back with the line, or the
+        // ticket returns unassigned and the work goes to nobody.
+        var args = { id: l.ref_id || l.key.split(':')[1] };
+        if (l.type !== 'product') args.technician_id = l.technician_id || '';
+        return post(l.type === 'product' ? 'add_product' : 'add_service', args)
           .then(function () { return l.qty > 1 ? post('set_qty', { key: l.key, qty: l.qty }) : null; });
       });
     });
@@ -329,7 +412,7 @@
       });
     }).then(function () {
       return post('set_discount', { type: held.meta.discount_type, value: held.meta.discount_value });
-    }).then(function () { return post('set_tip', { value: held.totals.tip }); })
+    }).then(function () { return post('set_tip', { value: held.totals.tip, method: held.meta.tip_method || 'card' }); })
       .then(function (s) { render(s); paintHold(); toast('Ticket resumed.'); });
   });
 

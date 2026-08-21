@@ -9,10 +9,11 @@ $msg = ''; $err = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'rates') {
     try {
         foreach ($_POST['commission'] ?? [] as $techId => $rate) {
-            query('UPDATE technicians SET commission_rate=?, pay_type=?, hourly_rate=? WHERE id=?', [
+            query('UPDATE technicians SET commission_rate=?, pay_type=?, hourly_rate=?, supply_fee_rate=? WHERE id=?', [
                 max(0, min(100, (float)$rate)),
                 in_array($_POST['pay_type'][$techId] ?? '', ['commission','booth','hourly'], true) ? $_POST['pay_type'][$techId] : 'commission',
                 max(0, (float)($_POST['hourly'][$techId] ?? 0)),
+                max(0, min(100, (float)($_POST['supply'][$techId] ?? 0))),
                 (int)$techId,
             ]);
         }
@@ -20,25 +21,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'rates
     } catch (Throwable $e) { $err = $e->getMessage(); }
 }
 
+$supplyOn = (int)(posSettings()['supply_fee_enabled'] ?? 0) === 1;
+
 $from = $_GET['from'] ?? date('Y-m-01');
 $to   = $_GET['to']   ?? date('Y-m-d');
 $rng  = [$from, $to];
 
-// Service revenue and tips, per technician, over the range. Tips follow the
-// ticket's technician; service revenue follows the line item's technician so a
-// two-tech ticket splits correctly.
+// Revenue AND tips both follow the line item's technician, so a ticket worked
+// by two people splits down the middle instead of landing on whoever happened
+// to be named on the ticket header. Reports reads the same way — the two pages
+// have to agree or nobody trusts either.
 // Aggregate first, then join — so a technician with no sales in this range
 // still appears (with zeros) instead of dropping off the report.
 $rows = fetchAll(
-    "SELECT t.id, t.name, t.pay_type, t.commission_rate, t.hourly_rate,
+    "SELECT t.id, t.name, t.pay_type, t.commission_rate, t.hourly_rate, t.supply_fee_rate,
             COALESCE(r.service_rev,0) AS service_rev,
             COALESCE(r.product_rev,0) AS product_rev,
+            COALESCE(r.tips_card,0)   AS tips_card,
+            COALESCE(r.tips_cash,0)   AS tips_cash,
             COALESCE(r.tickets,0)     AS tickets
      FROM technicians t
      LEFT JOIN (
          SELECT i.technician_id,
                 SUM(CASE WHEN i.item_type='service' THEN i.line_total - i.tax ELSE 0 END) AS service_rev,
                 SUM(CASE WHEN i.item_type='product' THEN i.line_total - i.tax ELSE 0 END) AS product_rev,
+                SUM(CASE WHEN s.tip_method='card' THEN i.tip ELSE 0 END) AS tips_card,
+                SUM(CASE WHEN s.tip_method='cash' THEN i.tip ELSE 0 END) AS tips_cash,
                 COUNT(DISTINCT i.sale_id) AS tickets
          FROM pos_sale_items i
          JOIN pos_sales s ON s.id = i.sale_id
@@ -48,12 +56,6 @@ $rows = fetchAll(
      WHERE t.is_active = 1
      ORDER BY t.display_order, t.name", $rng);
 
-$tips = [];
-foreach (fetchAll("SELECT technician_id, COALESCE(SUM(tip_total),0) v FROM pos_sales
-                   WHERE status='completed' AND DATE(created_at) BETWEEN ? AND ?
-                   GROUP BY technician_id", $rng) as $t) {
-    $tips[(int)$t['technician_id']] = (float)$t['v'];
-}
 $hours = [];
 foreach (fetchAll('SELECT technician_id,
                      COALESCE(SUM(TIMESTAMPDIFF(MINUTE, clock_in, COALESCE(clock_out, NOW()))),0)/60 h
@@ -68,21 +70,33 @@ foreach (fetchAll("SELECT assigned_tech_id, COALESCE(SUM(turn_value),0) v FROM p
     $turns[(int)$t['assigned_tech_id']] = (float)$t['v'];
 }
 
-$tot = ['service' => 0, 'product' => 0, 'tips' => 0, 'pay' => 0, 'hours' => 0];
+$tot = ['service' => 0, 'product' => 0, 'tips_card' => 0, 'tips_cash' => 0,
+        'supply' => 0, 'pay' => 0, 'hours' => 0];
 foreach ($rows as &$r) {
     $id = (int)$r['id'];
-    $r['tips']  = $tips[$id]  ?? 0;
     $r['hours'] = $hours[$id] ?? 0;
     $r['turns'] = $turns[$id] ?? 0;
     $r['commission'] = $r['pay_type'] === 'commission'
         ? round((float)$r['service_rev'] * (float)$r['commission_rate'] / 100, 2) : 0.0;
     $r['wage'] = $r['pay_type'] === 'hourly' ? round($r['hours'] * (float)$r['hourly_rate'], 2) : 0.0;
-    $r['payout'] = round($r['commission'] + $r['wage'] + $r['tips'], 2);
-    $tot['service'] += $r['service_rev'];
-    $tot['product'] += $r['product_rev'];
-    $tot['tips']    += $r['tips'];
-    $tot['pay']     += $r['payout'];
-    $tot['hours']   += $r['hours'];
+
+    // Supply fee is a percentage of what the chair took in, not of the
+    // technician's share — and it comes out of that share. A booth renter buys
+    // their own supplies, so they never pay it.
+    $r['supply'] = ($supplyOn && $r['pay_type'] !== 'booth')
+        ? round((float)$r['service_rev'] * (float)$r['supply_fee_rate'] / 100, 2) : 0.0;
+
+    // Card tips the shop is holding and owes. Cash tips went hand to hand at
+    // the chair hours ago — paying them again would pay them twice.
+    $r['payout'] = round($r['commission'] + $r['wage'] - $r['supply'] + (float)$r['tips_card'], 2);
+
+    $tot['service']   += $r['service_rev'];
+    $tot['product']   += $r['product_rev'];
+    $tot['tips_card'] += $r['tips_card'];
+    $tot['tips_cash'] += $r['tips_cash'];
+    $tot['supply']    += $r['supply'];
+    $tot['pay']       += $r['payout'];
+    $tot['hours']     += $r['hours'];
 }
 unset($r);
 ?>
@@ -101,20 +115,29 @@ unset($r);
 
 <div class="stats">
   <div class="stat"><div class="v"><?= money($tot['service']) ?></div><div class="k">Service revenue</div></div>
-  <div class="stat"><div class="v"><?= money($tot['tips']) ?></div><div class="k">Tips to pay out</div></div>
+  <div class="stat"><div class="v"><?= money($tot['tips_card']) ?></div><div class="k">Card tips to pay out</div></div>
+  <?php if ($supplyOn): ?>
+    <div class="stat"><div class="v"><?= money($tot['supply']) ?></div><div class="k">Supply fee kept</div></div>
+  <?php endif; ?>
   <div class="stat"><div class="v"><?= money($tot['pay']) ?></div><div class="k">Total payout</div></div>
   <div class="stat"><div class="v"><?= number_format($tot['hours'], 1) ?></div><div class="k">Hours clocked</div></div>
 </div>
 
 <div class="card">
   <h2>Payout — <?= date('m/d/Y', strtotime($from)) ?> to <?= date('m/d/Y', strtotime($to)) ?></h2>
-  <p class="sub">Commission is calculated on service revenue net of tax. Tips are passed through in full.</p>
+  <p class="sub">
+    Commission is calculated on service revenue net of tax.
+    <?php if ($supplyOn): ?>Supply fee is a percentage of that same revenue and comes out of the technician's share.<?php endif; ?>
+    Card tips are owed and included in the payout; cash tips were handed over at the chair and are shown for the record only.
+  </p>
   <div class="table-wrap">
     <table>
       <thead><tr>
         <th>Technician</th><th>Basis</th><th class="num">Tickets</th><th class="num">Turns</th>
         <th class="num">Services</th><th class="num">Retail</th><th class="num">Commission</th>
-        <th class="num">Hours</th><th class="num">Wage</th><th class="num">Tips</th><th class="num">Payout</th>
+        <?php if ($supplyOn): ?><th class="num">Supply fee</th><?php endif; ?>
+        <th class="num">Hours</th><th class="num">Wage</th>
+        <th class="num">Card tips</th><th class="num">Cash tips</th><th class="num">Payout</th>
       </tr></thead>
       <tbody>
       <?php foreach ($rows as $r): ?>
@@ -126,9 +149,17 @@ unset($r);
           <td class="num"><?= money($r['service_rev']) ?></td>
           <td class="num"><?= money($r['product_rev']) ?></td>
           <td class="num"><?= money($r['commission']) ?></td>
+          <?php if ($supplyOn): ?>
+            <td class="num"><?= $r['supply'] > 0 ? '−' . money($r['supply']) : money(0) ?>
+              <?php if ((float)$r['supply_fee_rate'] > 0 && $r['pay_type'] !== 'booth'): ?>
+                <small style="opacity:.6">(<?= (float)$r['supply_fee_rate'] ?>%)</small>
+              <?php endif; ?>
+            </td>
+          <?php endif; ?>
           <td class="num"><?= number_format($r['hours'], 1) ?></td>
           <td class="num"><?= money($r['wage']) ?></td>
-          <td class="num"><?= money($r['tips']) ?></td>
+          <td class="num"><?= money($r['tips_card']) ?></td>
+          <td class="num" style="opacity:.6"><?= money($r['tips_cash']) ?></td>
           <td class="num"><strong><?= money($r['payout']) ?></strong></td>
         </tr>
       <?php endforeach; ?>
@@ -139,9 +170,11 @@ unset($r);
           <td class="num"><?= money($tot['service']) ?></td>
           <td class="num"><?= money($tot['product']) ?></td>
           <td class="num"></td>
+          <?php if ($supplyOn): ?><td class="num">−<?= money($tot['supply']) ?></td><?php endif; ?>
           <td class="num"><?= number_format($tot['hours'], 1) ?></td>
           <td class="num"></td>
-          <td class="num"><?= money($tot['tips']) ?></td>
+          <td class="num"><?= money($tot['tips_card']) ?></td>
+          <td class="num" style="opacity:.6"><?= money($tot['tips_cash']) ?></td>
           <td class="num"><?= money($tot['pay']) ?></td>
         </tr>
       </tfoot>
@@ -152,12 +185,14 @@ unset($r);
 <div class="card no-print">
   <h2>Pay rates</h2>
   <p class="sub">Commission techs earn a share of their own service revenue. Booth renters keep tips only here —
-     record their rent as an expense. Hourly uses clocked hours from the queue board.</p>
+     record their rent as an expense. Hourly uses clocked hours from the queue board.
+     <?php if ($supplyOn): ?>The supply fee is negotiated per person, so each has their own rate.
+     <?php else: ?>Supply fee is switched off in Settings, so those rates are ignored for now.<?php endif; ?></p>
   <form method="post">
     <input type="hidden" name="action" value="rates">
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Technician</th><th>Pay type</th><th>Commission %</th><th>Hourly rate</th></tr></thead>
+        <thead><tr><th>Technician</th><th>Pay type</th><th>Commission %</th><th>Supply fee %</th><th>Hourly rate</th></tr></thead>
         <tbody>
         <?php foreach ($rows as $r): ?>
           <tr>
@@ -170,6 +205,7 @@ unset($r);
               </select>
             </td>
             <td><input type="number" step="0.5" name="commission[<?= (int)$r['id'] ?>]" value="<?= (float)$r['commission_rate'] ?>" style="width:110px"></td>
+            <td><input type="number" step="0.1" min="0" max="100" name="supply[<?= (int)$r['id'] ?>]" value="<?= (float)$r['supply_fee_rate'] ?>" style="width:110px"></td>
             <td><input type="number" step="0.01" name="hourly[<?= (int)$r['id'] ?>]" value="<?= (float)$r['hourly_rate'] ?>" style="width:110px"></td>
           </tr>
         <?php endforeach; ?>

@@ -10,15 +10,31 @@ if (!isLoggedIn()) jsonOut(['error' => 'Not signed in.'], 401);
 
 $action = $_POST['action'] ?? $_GET['action'] ?? 'state';
 
+function techNames(): array {
+    static $n = null;
+    if ($n === null) {
+        $n = [];
+        foreach (fetchAll('SELECT id, name FROM technicians') as $t) $n[(int)$t['id']] = $t['name'];
+    }
+    return $n;
+}
+
 function ticketPayload(array $extra = []): array {
     $c = cart();
     $t = cartTotals();
+    $names = techNames();
+    $tips  = allocateTips($t['lines'], (float)$t['tip']);
     $lines = [];
     foreach ($t['lines'] as $k => $l) {
+        $tech = $l['technician_id'] ? (int)$l['technician_id'] : null;
         $lines[] = [
             'key' => $k, 'name' => $l['name'], 'type' => $l['type'], 'ref_id' => $l['ref_id'],
             'qty' => $l['qty'], 'price' => (float)$l['price'],
             'discount' => (float)$l['discount'], 'total' => (float)$l['line_total'],
+            'technician_id' => $tech,
+            'technician'    => $tech ? ($names[$tech] ?? 'Technician ' . $tech) : null,
+            'needs_tech'    => $l['type'] === 'service' && !$tech,
+            'tip'           => round($tips[$k] ?? 0, 2),
         ];
     }
     $ten    = cartTenders();
@@ -49,6 +65,8 @@ function ticketPayload(array $extra = []): array {
                 'points' => (int)$client['points'],
                 'points_value' => pointsToMoney((int)$client['points']),
             ] : null,
+            'tip_method'     => $c['tip_method'] === 'cash' ? 'cash' : 'card',
+            'missing_tech'   => array_values(cartLinesMissingTech()),
             'points_redeem'  => (int)$c['points_redeem'],
             'gift_cards'     => array_values($c['gift_cards']),
         ],
@@ -62,7 +80,19 @@ try {
         case 'add_service':
             $s = fetchOne('SELECT * FROM services WHERE id=? AND is_active=1', [(int)$_POST['id']]);
             if (!$s) jsonOut(['error' => 'Service not found.'], 404);
-            cartAdd('service', (int)$s['id'], $s['name'], (float)$s['price'], 1, null, 1);
+            $tech = (int)($_POST['technician_id'] ?? 0) ?: null;
+            if ($tech && !fetchOne('SELECT 1 x FROM technicians WHERE id=? AND is_active=1', [$tech])) {
+                jsonOut(['error' => 'That technician is not on the floor.'], 422);
+            }
+            cartAdd('service', (int)$s['id'], $s['name'], (float)$s['price'], 1, $tech, 1);
+            break;
+
+        case 'set_line_tech':
+            $tech = (int)($_POST['technician_id'] ?? 0) ?: null;
+            if ($tech && !fetchOne('SELECT 1 x FROM technicians WHERE id=? AND is_active=1', [$tech])) {
+                jsonOut(['error' => 'That technician is not on the floor.'], 422);
+            }
+            cartSetLineTech((string)$_POST['key'], $tech);
             break;
 
         case 'add_product':
@@ -124,6 +154,12 @@ try {
         case 'set_tip':
             $c = &cart();
             $c['tip'] = max(0, round((float)($_POST['value'] ?? 0), 2));
+            // Cash tips are handed over at the chair and are already in the
+            // technician's pocket; card tips the shop still owes them. Payroll
+            // cannot tell the two apart later, so it is recorded now.
+            if (isset($_POST['method'])) {
+                $c['tip_method'] = $_POST['method'] === 'cash' ? 'cash' : 'card';
+            }
             break;
 
         case 'load_appointment':

@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if (($_POST['action'] ?? '') === 'settings') {
             query('UPDATE pos_settings SET currency_symbol=?, tax_rate=?, tax_label=?, tax_services=?,
-                   receipt_header=?, receipt_footer=?, tip_presets=? WHERE id=1', [
+                   receipt_header=?, receipt_footer=?, tip_presets=?, supply_fee_enabled=? WHERE id=1', [
                 trim($_POST['currency_symbol']) ?: '$',
                 max(0, (float)$_POST['tax_rate']),
                 trim($_POST['tax_label']) ?: 'Sales Tax',
@@ -18,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 trim($_POST['receipt_header']),
                 trim($_POST['receipt_footer']),
                 preg_replace('/[^0-9,\.]/', '', $_POST['tip_presets']) ?: '15,18,20,25',
+                isset($_POST['supply_fee_enabled']) ? 1 : 0,
             ]);
             $msg = 'Settings saved.';
         } elseif (($_POST['action'] ?? '') === 'store') {
@@ -205,9 +206,18 @@ $policies = fetchAll('SELECT * FROM pos_consent_templates ORDER BY id');
       <label class="field"><span>Receipt header</span><input type="text" name="receipt_header" value="<?= e($s['receipt_header']) ?>"></label>
       <label class="field"><span>Receipt footer</span><input type="text" name="receipt_footer" value="<?= e($s['receipt_footer']) ?>"></label>
     </div>
-    <label style="display:block;font-weight:700;margin:6px 0 16px">
+    <label style="display:block;font-weight:700;margin:6px 0 10px">
       <input type="checkbox" name="tax_services" <?= $s['tax_services'] ? 'checked' : '' ?>> Charge tax on services too
     </label>
+    <label style="display:block;font-weight:700;margin:0 0 6px">
+      <input type="checkbox" name="supply_fee_enabled" <?= !empty($s['supply_fee_enabled']) ? 'checked' : '' ?>>
+      Deduct a supply fee from technician payouts
+    </label>
+    <p class="sub" style="margin:0 0 16px">
+      Off, and payroll ignores it entirely. On, and each technician's own rate — set on the
+      <a href="<?= BASE_PATH ?>/pos/payroll.php">Payroll</a> page — is charged on the service revenue
+      they took in and withheld from what they are paid. It never changes what the guest is charged.
+    </p>
     <button class="btn btn-green" type="submit">Save settings</button>
   </form>
 </div>

@@ -20,7 +20,10 @@ if ($q !== '') {
     $where[] = '(s.sale_no LIKE ? OR s.customer_name LIKE ? OR s.customer_phone LIKE ?)';
     array_push($args, "%$q%", "%$q%", "%$q%");
 }
-$sql = 'SELECT s.*, t.name AS tech_name,
+$sql = 'SELECT s.*,
+               COALESCE((SELECT GROUP_CONCAT(DISTINCT t2.name ORDER BY t2.name SEPARATOR ", ")
+                 FROM pos_sale_items i2 JOIN technicians t2 ON t2.id = i2.technician_id
+                 WHERE i2.sale_id = s.id), t.name) AS tech_name,
                (SELECT GROUP_CONCAT(CONCAT(p.method) SEPARATOR ", ") FROM pos_payments p WHERE p.sale_id=s.id) AS methods
         FROM pos_sales s LEFT JOIN technicians t ON t.id=s.technician_id
         WHERE ' . implode(' AND ', $where) . ' ORDER BY s.id DESC LIMIT 300';

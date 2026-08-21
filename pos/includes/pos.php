@@ -45,6 +45,7 @@ function &cart(): array {
         'discount_type'  => 'amount',
         'discount_value' => 0,
         'tip'            => 0,
+        'tip_method'     => 'card',
         'customer_name'  => '',
         'customer_phone' => '',
         'appointment_id' => null,
@@ -72,8 +73,12 @@ function cartReset(): void {
     cart();   // rebuild it empty so callers always get the full shape
 }
 
-function lineKey(string $type, $refId, float $price): string {
-    return $type . ':' . ($refId ?? '0') . ':' . number_format($price, 2, '.', '');
+function lineKey(string $type, $refId, float $price, ?int $techId = null): string {
+    // The technician is part of the identity of a line: a $45 full set by
+    // Ann and a $45 full set by Bee are two lines, two payouts, two turns —
+    // never one line of qty 2.
+    return $type . ':' . ($refId ?? '0') . ':' . number_format($price, 2, '.', '')
+         . ':t' . ($techId ?: '0');
 }
 
 function cartAdd(string $type, ?int $refId, string $name, float $price, int $qty = 1, ?int $techId = null, int $taxable = 1, array $extra = []): void {
@@ -82,7 +87,7 @@ function cartAdd(string $type, ?int $refId, string $name, float $price, int $qty
     // line so two $50 cards don't collapse into a single $100 line.
     $k = $type === 'giftcard'
         ? 'giftcard:' . count($c['lines']) . ':' . number_format($price, 2, '.', '')
-        : lineKey($type, $refId, $price);
+        : lineKey($type, $refId, $price, $techId);
     if (isset($c['lines'][$k])) {
         $c['lines'][$k]['qty'] += $qty;
     } else {
@@ -105,6 +110,74 @@ function cartSetQty(string $key, int $qty): void {
 function cartRemove(string $key): void {
     $c = &cart();
     unset($c['lines'][$key]);
+}
+
+/**
+ * Move a line to a different technician. The technician is baked into the
+ * line key, so this re-keys the line rather than editing it in place — and
+ * if that lands on a line the other technician already has, the two merge.
+ */
+function cartSetLineTech(string $key, ?int $techId): void {
+    $c = &cart();
+    if (!isset($c['lines'][$key])) return;
+    $line = $c['lines'][$key];
+    $line['technician_id'] = $techId;
+    unset($c['lines'][$key]);
+    $newKey = $line['type'] === 'giftcard'
+        ? $key
+        : lineKey($line['type'], $line['ref_id'], (float)$line['price'], $techId);
+    if (isset($c['lines'][$newKey])) {
+        $c['lines'][$newKey]['qty'] += $line['qty'];
+    } else {
+        $c['lines'][$newKey] = $line;
+    }
+}
+
+/** Service lines still waiting on a technician. Checkout refuses while any remain. */
+function cartLinesMissingTech(): array {
+    $missing = [];
+    foreach (cart()['lines'] as $k => $l) {
+        if ($l['type'] === 'service' && empty($l['technician_id'])) $missing[$k] = $l['name'];
+    }
+    return $missing;
+}
+
+/**
+ * Split the ticket's tip across the people who actually did the work,
+ * pro-rata on what each line earned. Whole cents only, with the rounding
+ * remainder going to the largest line so the parts always sum to the tip.
+ * Retail lines are excluded: nobody tips the shelf.
+ */
+function allocateTips(array $lines, float $tip): array {
+    $out = [];
+    foreach ($lines as $k => $l) $out[$k] = 0.0;
+    $tip = round($tip, 2);
+    if ($tip <= 0) return $out;
+
+    $base = [];
+    foreach ($lines as $k => $l) {
+        if ($l['type'] !== 'service' || empty($l['technician_id'])) continue;
+        $net = $l['price'] * $l['qty'] - $l['discount'];
+        if ($net > 0) $base[$k] = $net;
+    }
+    // A tip on a ticket with no attributable service line (retail only, or a
+    // service nobody was assigned to) stays on the ticket and out of payroll.
+    if (!$base) return $out;
+
+    $sum = array_sum($base);
+    $cents = (int)round($tip * 100);
+    $given = 0;
+    foreach ($base as $k => $net) {
+        $share = (int)floor($cents * $net / $sum);
+        $out[$k] = $share / 100;
+        $given += $share;
+    }
+    if ($given < $cents) {
+        arsort($base);
+        $biggest = array_key_first($base);
+        $out[$biggest] = round($out[$biggest] + ($cents - $given) / 100, 2);
+    }
+    return $out;
 }
 
 // Recompute every total. Discount is spread across lines pro-rata so
@@ -198,6 +271,13 @@ function checkout(array $payments): int {
     $t = cartTotals();
     if ($t['count'] < 1) throw new RuntimeException('Cart is empty.');
 
+    // Every service has to belong to somebody. Without this the ticket rings
+    // up fine and then nobody gets paid for it — the one failure the shop
+    // only notices on payday.
+    if ($missing = cartLinesMissingTech()) {
+        throw new RuntimeException('Choose a technician for: ' . implode(', ', $missing) . '.');
+    }
+
     $ten  = cartTenders();
     $due  = cartDue();
     $cashCard = 0.0;
@@ -233,22 +313,26 @@ function checkout(array $payments): int {
         query("INSERT INTO pos_sales
                  (sale_no, appointment_id, checkin_id, client_id, customer_name, customer_phone,
                   technician_id, cashier_id, subtotal, discount_total, tax_total, tip_total,
-                  grand_total, paid_total, change_due, points_earned, points_redeemed, note)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [
+                  tip_method, grand_total, paid_total, change_due, points_earned, points_redeemed, note)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [
             nextSaleNo(), $c['appointment_id'] ?: null, $c['checkin_id'] ?: null, $c['client_id'] ?: null,
             $c['customer_name'], $c['customer_phone'], $c['technician_id'] ?: null, $admin['id'] ?? null,
-            $t['subtotal'], $t['discount'], $t['tax'], $t['tip'], $t['total'], $paid, $change,
+            $t['subtotal'], $t['discount'], $t['tax'], $t['tip'],
+            $c['tip_method'] === 'cash' ? 'cash' : 'card',
+            $t['total'], $paid, $change,
             $earned, $ten['points'], $c['note'],
         ]);
         $saleId = (int)$pdo->lastInsertId();
 
         $issuedCards = [];
-        foreach ($t['lines'] as $l) {
+        $lineTips = allocateTips($t['lines'], (float)$t['tip']);
+        foreach ($t['lines'] as $k => $l) {
             query("INSERT INTO pos_sale_items
-                     (sale_id,item_type,ref_id,name,unit_price,qty,discount,tax,line_total,technician_id)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)", [
+                     (sale_id,item_type,ref_id,name,unit_price,qty,discount,tax,line_total,technician_id,tip)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)", [
                 $saleId, $l['type'], $l['ref_id'], $l['name'], $l['price'], $l['qty'],
                 $l['discount'], $l['tax'], $l['line_total'], $l['technician_id'] ?: $c['technician_id'] ?: null,
+                $lineTips[$k] ?? 0,
             ]);
             if ($l['type'] === 'product' && $l['ref_id']) {
                 query("UPDATE pos_products SET stock_qty = stock_qty - ? WHERE id = ?", [$l['qty'], $l['ref_id']]);

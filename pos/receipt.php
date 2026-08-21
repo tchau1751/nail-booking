@@ -11,7 +11,10 @@ $sale = fetchOne('SELECT s.*, t.name AS tech_name, u.name AS cashier_name
                   LEFT JOIN admin_users u ON u.id = s.cashier_id
                   WHERE s.id = ?', [$id]);
 if (!$sale) { http_response_code(404); exit('Sale not found.'); }
-$items    = fetchAll('SELECT * FROM pos_sale_items WHERE sale_id=? ORDER BY id', [$id]);
+$items    = fetchAll('SELECT i.*, t.name AS item_tech
+                     FROM pos_sale_items i
+                     LEFT JOIN technicians t ON t.id = i.technician_id
+                     WHERE i.sale_id=? ORDER BY i.id', [$id]);
 $payments = fetchAll('SELECT * FROM pos_payments WHERE sale_id=? ORDER BY id', [$id]);
 $cards    = fetchAll('SELECT * FROM pos_gift_cards WHERE issued_sale_id=? ORDER BY id', [$id]);
 $client   = $sale['client_id'] ? fetchOne('SELECT full_name, points FROM pos_clients WHERE id=?', [$sale['client_id']]) : null;
@@ -59,7 +62,6 @@ $starAuto = ($_GET['star'] ?? '') === '1';
     <tr><td>Sale</td><td class="r"><?= e($sale['sale_no']) ?></td></tr>
     <tr><td>Date</td><td class="r"><?= date('m/d/Y g:i A', strtotime($sale['created_at'])) ?></td></tr>
     <?php if ($sale['customer_name']): ?><tr><td>Guest</td><td class="r"><?= e($sale['customer_name']) ?></td></tr><?php endif; ?>
-    <?php if ($sale['tech_name']): ?><tr><td>Tech</td><td class="r"><?= e($sale['tech_name']) ?></td></tr><?php endif; ?>
     <?php if ($sale['cashier_name']): ?><tr><td>Cashier</td><td class="r"><?= e($sale['cashier_name']) ?></td></tr><?php endif; ?>
   </table>
   <hr>
@@ -67,6 +69,7 @@ $starAuto = ($_GET['star'] ?? '') === '1';
     <?php foreach ($items as $it): ?>
       <tr>
         <td><?= e($it['name']) ?><?= $it['qty'] > 1 ? ' ×' . (int)$it['qty'] : '' ?>
+          <?php if ($it['item_tech']): ?><div class="muted"><?= e($it['item_tech']) ?></div><?php endif; ?>
           <?php if ($it['discount'] > 0): ?><div class="muted">discount −<?= money($it['discount']) ?></div><?php endif; ?>
         </td>
         <td class="r"><?= money($it['line_total']) ?></td>

@@ -62,7 +62,10 @@ if (!$client) { echo '<div class="alert alert-err">Client not found.</div>';
 $pageTitle = $client['full_name'];
 $techs   = fetchAll('SELECT id,name FROM technicians WHERE is_active=1 ORDER BY display_order, name');
 $notes   = clientNotes($id);
-$visits  = fetchAll("SELECT s.*, t.name AS tech_name FROM pos_sales s
+$visits  = fetchAll("SELECT s.*, COALESCE((SELECT GROUP_CONCAT(DISTINCT t2.name ORDER BY t2.name SEPARATOR ', ')
+                 FROM pos_sale_items i2 JOIN technicians t2 ON t2.id = i2.technician_id
+                 WHERE i2.sale_id = s.id), t.name) AS tech_name
+                     FROM pos_sales s
                      LEFT JOIN technicians t ON t.id=s.technician_id
                      WHERE s.client_id=? ORDER BY s.id DESC LIMIT 50", [$id]);
 $points  = fetchAll('SELECT * FROM pos_loyalty_txns WHERE client_id=? ORDER BY id DESC LIMIT 30', [$id]);

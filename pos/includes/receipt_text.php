@@ -55,13 +55,14 @@ function receiptLines(array $sale, array $items, array $payments, array $cards, 
     $add(rtRow('Sale', (string)$sale['sale_no']));
     $add(rtRow('Date', date('m/d/Y g:i A', strtotime($sale['created_at']))));
     if ($sale['customer_name'])  $add(rtRow('Guest', (string)$sale['customer_name']));
-    if ($sale['tech_name'])      $add(rtRow('Tech', (string)$sale['tech_name']));
     if ($sale['cashier_name'])   $add(rtRow('Cashier', (string)$sale['cashier_name']));
     $add(rtDivider());
 
     foreach ($items as $it) {
         $name = $it['name'] . ((int)$it['qty'] > 1 ? ' x' . (int)$it['qty'] : '');
         $add(rtRow($name, money($it['line_total'])));
+        // Who did it, on the line — a two-chair ticket needs two names.
+        if (!empty($it['item_tech'])) $add('  ' . $it['item_tech']);
         if ($it['discount'] > 0) $add('  discount -' . money($it['discount']));
     }
     $add(rtDivider());

@@ -158,6 +158,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .line .l-main{order:0;flex:1;min-width:0;}
 .line .l-name{font-weight:700;font-size:16px;}
 .line .l-sub{font-size:13px;color:var(--ink-soft);}
+/* Who did the work, on the line itself — tap to reassign. An unassigned
+   service is loud on purpose: the ticket cannot be charged until it is set. */
+.line .l-tech{display:inline-block;margin-top:4px;padding:4px 10px;border:1px solid var(--line);
+  border-radius:999px;background:#fff;font:inherit;font-size:12px;font-weight:700;
+  color:var(--ink-soft);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.line .l-tech.missing{border-color:var(--red);color:var(--red);background:#fdf2f2;}
 
 /* The − and the + sit at opposite ends of the row: one big unmistakable
    sign at each edge, instead of two small buttons crowded together in the

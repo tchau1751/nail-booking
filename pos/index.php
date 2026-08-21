@@ -180,7 +180,7 @@ $tipPresets = array_filter(array_map('trim', explode(',', posSettings()['tip_pre
     <h3>Ticket details</h3>
     <label class="field"><span>Customer name</span><input type="text" id="cName" placeholder="Walk-in"></label>
     <label class="field"><span>Phone</span><input type="text" id="cPhone" inputmode="tel" placeholder="(555) 123-4567"></label>
-    <label class="field"><span>Technician</span>
+    <label class="field"><span>Default technician</span>
       <select id="cTech">
         <option value="">— none —</option>
         <?php foreach ($technicians as $t): ?>
@@ -188,10 +188,23 @@ $tipPresets = array_filter(array_map('trim', explode(',', posSettings()['tip_pre
         <?php endforeach; ?>
       </select>
     </label>
+    <p class="sub" style="margin:-6px 0 12px;font-size:13px">Each service is credited to whoever is picked on its own line — this only covers retail and anything unassigned.</p>
     <label class="field"><span>Note</span><input type="text" id="cNote" placeholder="Optional"></label>
     <div class="modal-actions">
       <button class="btn btn-light" type="button" data-close>Cancel</button>
       <button class="btn btn-green" type="button" id="cSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Every service has to be credited to somebody, so this opens the moment a
+     service tile is tapped and again if the line is tapped to reassign it. -->
+<div class="modal" id="mTech">
+  <div class="modal-box">
+    <h3 id="techTitle">Choose technician</h3>
+    <div class="chips" id="techChoices"></div>
+    <div class="modal-actions">
+      <button class="btn btn-light" type="button" data-close>Cancel</button>
     </div>
   </div>
 </div>
@@ -298,9 +311,12 @@ $tipPresets = array_filter(array_map('trim', explode(',', posSettings()['tip_pre
     currency: '<?= e(posSettings()['currency_symbol']) ?>',
     tipPresets: <?= json_encode(array_map('floatval', array_values($tipPresets))) ?>,
     minRedeem: <?= (int)(posSettings()['points_min_redeem'] ?? 100) ?>,
+    techs: <?= json_encode(array_map(function ($t) {
+      return ['id' => (int)$t['id'], 'name' => $t['name']];
+    }, $technicians)) ?>,
     preload: <?= json_encode($preload) ?>
   };
 </script>
-<script src="<?= BASE_PATH ?>/pos/assets/pos.js"></script>
+<script src="<?= BASE_PATH ?>/pos/assets/pos.js?v=<?= @filemtime(__DIR__ . '/assets/pos.js') ?>"></script>
 
 <?php require_once __DIR__ . '/includes/layout_end.php'; ?>
