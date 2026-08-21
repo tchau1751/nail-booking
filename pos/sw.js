@@ -7,7 +7,7 @@
    the app opens instantly and survives a brief Wi-Fi drop with a
    clear "you're offline" screen instead of a browser error.
    ============================================================ */
-const VERSION = 'pos-v7';
+const VERSION = 'pos-v8';
 const SCOPE = new URL(self.registration.scope).pathname;   // e.g. /nail-booking/pos/
 
 const SHELL = [

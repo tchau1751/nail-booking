@@ -61,7 +61,7 @@ a{color:inherit;}
   display:flex; align-items:center; gap:13px; padding:0 13px;
   position:sticky; top:0; z-index:50;
 }
-.brand{font-size:18px;font-weight:800;white-space:nowrap;}
+.brand{font-size:18px;font-weight:600;white-space:nowrap;}
 .topnav{display:flex; gap:6px; flex:1; overflow-x:auto; scrollbar-width:none;}
 .topnav::-webkit-scrollbar{display:none;}
 .topnav a{
@@ -72,7 +72,7 @@ a{color:inherit;}
 .topnav a.active,.topnav a:hover{background:#fffff; color:#fff;}
 .topnav .ico{font-size:18px;}
 .topright{display:flex;align-items:center;gap:12px;font-size:14px;color:rgba(255,255,255,.75);}
-.topright .who{font-weight:700;color:#fff;}
+.topright .who{font-weight:500;color:#fff;}
 
 /* ── Page shells ─────────────────────────────────────────── */
 .page{padding:20px; max-width:1400px; margin:0 auto;}
@@ -86,14 +86,14 @@ a{color:inherit;}
 }
 
 .card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; margin-bottom:16px;}
-.card h2{font-size:18px;font-weight:800;margin-bottom:4px;}
+.card h2{font-size:18px;font-weight:600;margin-bottom:4px;}
 .card .sub{font-size:13px;color:var(--ink-soft);margin-bottom:14px;}
 
 /* ── Buttons ─────────────────────────────────────────────── */
 .btn{
   display:inline-flex; align-items:center; justify-content:center; gap:8px;
   min-height:48px; padding:0 20px; border:none; border-radius:12px;
-  background:var(--ink); color:#fff; font-weight:700; cursor:pointer;
+  background:var(--ink); color:#fff; font-weight:500; cursor:pointer;
   text-decoration:none; user-select:none;
 }
 .btn:active{transform:translateY(1px);}
@@ -111,7 +111,7 @@ a{color:inherit;}
 .btn[hidden]{display:none;}
 
 .field{display:block;margin-bottom:12px;}
-.field span{display:block;font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
+.field span{display:block;font-size:12px;font-weight:500;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
 input[type=text],input[type=number],input[type=search],input[type=date],select,textarea{
   width:100%; min-height:48px; padding:10px 14px; border:1px solid var(--line);
   border-radius:11px; background:#fff;
@@ -134,7 +134,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .tabs{order:1; display:flex; gap:8px; padding:12px 14px; overflow-x:auto; border-bottom:1px solid var(--line); scrollbar-width:none;}
 .tabs::-webkit-scrollbar{display:none;}
 .tab{min-height:44px;padding:0 18px;border-radius:22px;border:1px solid var(--line);background:#fff;
-  font-weight:700;white-space:nowrap;cursor:pointer;display:flex;align-items:center;}
+  font-weight:500;white-space:nowrap;cursor:pointer;display:flex;align-items:center;}
 .tab.active{background:var(--ink);color:#fff;border-color:var(--ink);}
 .tiles{order:2; flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:14px;
   display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; align-content:start;}
@@ -144,9 +144,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
   justify-content:space-between; gap:6px;
 }
 .tile:active{background:#faf6f2;}
-.tile .t-name{font-weight:700;font-size:15px;line-height:1.25;}
+.tile .t-name{font-weight:500;font-size:15px;line-height:1.25;}
 .tile .t-meta{font-size:12px;color:var(--ink-soft);}
-.tile .t-price{font-size:18px;font-weight:800;color:var(--ink);}
+.tile .t-price{font-size:18px;font-weight:600;color:var(--ink);}
 .tile.service{border-left:5px solid var(--gold);}
 .tile.product{border-left:5px solid var(--blue);}
 .tile.out{opacity:.45;}
@@ -180,7 +180,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 
 /* An attached client sits on the same row as the guest name rather than on a
    bar of its own — one row handed back to the ticket lines. */
-#clientBar{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;font-weight:700;}
+#clientBar{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;font-weight:500;}
 /* display:flex above outranks the browser's own [hidden]{display:none}, so
    without this line the bar would show on every walk-in ticket. Same trap
    the zero-value totals rows fell into further down. */
@@ -193,21 +193,23 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .tickets{display:flex;gap:6px;align-items:center;padding:8px 10px 0;flex-wrap:wrap;}
 .tickets .tk{display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:0 12px;
   border:1px solid var(--line);border-radius:999px;background:var(--card);
-  font-size:13px;font-weight:700;color:var(--ink-soft);cursor:pointer;}
+  font-size:13px;font-weight:500;color:var(--ink-soft);cursor:pointer;}
 .tickets .tk.on{background:var(--ink);border-color:var(--ink);color:#fff;}
-.tickets .tk .x{font-weight:800;opacity:.55;}
+.tickets .tk .x{font-weight:600;opacity:.55;}
 .tickets .tk-add{min-height:38px;padding:0 14px;border:1px dashed var(--line);border-radius:999px;
-  background:none;font:inherit;font-size:13px;font-weight:800;color:var(--ink-soft);cursor:pointer;}
+  background:none;font:inherit;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;}
 
 .lines{flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 10px;}
 .line{display:flex; gap:8px; align-items:center; padding:8px 4px; border-bottom:1px solid var(--line);}
 .line .l-main{order:0;flex:1;min-width:0;}
-.line .l-name{font-weight:700;font-size:16px;}
-.line .l-sub{font-size:13px;color:var(--ink-soft);}
+.line .l-name{font-weight:500;font-size:16px;}
+.line .l-sub{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;min-width:0;
+  font-size:13px;color:var(--ink-soft);}
+.line .l-sub > .l-tech{flex:0 1 auto;min-width:0;}
 /* Who did the work, on the line itself — tap to reassign. An unassigned
    service is loud on purpose: the ticket cannot be charged until it is set. */
-.line .l-tech{display:inline-block;margin-top:4px;padding:4px 10px;border:1px solid var(--line);
-  border-radius:999px;background:#fff;font:inherit;font-size:12px;font-weight:700;
+.line .l-tech{display:inline-block;padding:3px 9px;border:1px solid var(--line);
+  border-radius:999px;background:var(--card);font:inherit;font-size:12px;font-weight:500;
   color:var(--ink-soft);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .line .l-tech.missing{border-color:var(--red);color:var(--red);background:#fdf2f2;}
 
@@ -218,12 +220,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
    which means pos.js keeps rendering exactly the markup it always has. */
 .stepper{display:contents;}
 .stepper button{width:46px;height:46px;border:none;background:none;
-  font-size:30px;font-weight:800;line-height:1;color:var(--ink);cursor:pointer;}
+  font-size:30px;font-weight:600;line-height:1;color:var(--ink);cursor:pointer;}
 .stepper button:active{color:var(--gold);}
 .stepper button[data-act=dec]{order:-1;}
 .stepper button[data-act=inc]{order:3;}
-.stepper .qty{order:1;min-width:26px;text-align:center;font-weight:800;font-size:18px;}
-.line .l-total{order:2;width:66px;margin-right:6px;text-align:right;font-weight:800;font-size:17px;
+.stepper .qty{order:1;min-width:26px;text-align:center;font-weight:600;font-size:18px;}
+.line .l-total{order:2;width:66px;margin-right:6px;text-align:right;font-weight:600;font-size:17px;
   background:none;border:1px solid transparent;border-radius:8px;font-family:inherit;
   color:inherit;cursor:pointer;padding:4px 2px;}
 .line .l-total:hover,.line .l-total:focus{border-color:var(--line);background:var(--card);}
@@ -256,7 +258,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
    off, but the same size. No font-size is set anywhere on it on purpose: it
    inherits .totals .row, so it keeps matching at every screen size without
    the size having to be repeated in each media query. */
-.totals .grand{align-items:center;font-weight:800;color:var(--ink);
+.totals .grand{align-items:center;font-weight:700;color:var(--ink);
   padding-top:12px;margin-top:8px;border-top:1px dashed var(--line);}
 .totals .grand span{color:var(--ink);}
 .ticket-actions{flex:0 0 auto;display:grid;grid-template-columns:1fr 1fr;gap:10px;
@@ -296,16 +298,16 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .modal.open{display:flex;}
 .modal-box{background:#fff;border-radius:18px;width:100%;max-width:620px;max-height:92vh;
   overflow-y:auto;padding:20px;box-shadow:0 18px 48px rgba(0,0,0,.28);}
-.modal-box h3{font-size:20px;font-weight:800;margin-bottom:14px;}
+.modal-box h3{font-size:20px;font-weight:600;margin-bottom:14px;}
 .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0;}
 .pad button{min-height:60px;border-radius:13px;border:1px solid var(--line);background:#fff;
-  font-size:22px;font-weight:800;cursor:pointer;}
+  font-size:22px;font-weight:600;cursor:pointer;}
 .pad button:active{background:#f2ece8;}
-.amount-display{font-size:38px;font-weight:800;text-align:right;padding:14px 16px;
+.amount-display{font-size:38px;font-weight:600;text-align:right;padding:14px 16px;
   background:#fbf8f6;border-radius:13px;border:1px solid var(--line);}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;}
 .chip{min-height:48px;padding:0 18px;border-radius:12px;border:1px solid var(--line);
-  background:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;}
+  background:#fff;font-weight:500;cursor:pointer;display:flex;align-items:center;}
 .chip.active{background:var(--gold);border-color:var(--gold);color:#fff;}
 .modal-actions{display:flex;gap:10px;margin-top:16px;}
 .modal-actions .btn{flex:1;}
@@ -313,19 +315,19 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 /* ── Tables (sales, products, reports) ───────────────────── */
 .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff;}
 table{width:100%;border-collapse:collapse;}
-th{background:#faf7f5;padding:14px 12px;text-align:left;font-size:12px;font-weight:800;
+th{background:#faf7f5;padding:14px 12px;text-align:left;font-size:12px;font-weight:600;
   text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);border-bottom:1px solid var(--line);}
 td{padding:14px 12px;border-bottom:1px solid var(--line);}
 tr:last-child td{border-bottom:none;}
 .num{text-align:right;font-variant-numeric:tabular-nums;}
-.pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:800;}
+.pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;}
 .pill-ok{background:#e8f6ee;color:#14663a;} .pill-void{background:#fdecec;color:#8f2020;}
 .pill-low{background:#fff4d6;color:#7a5800;}
 
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px;}
 .stat{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;}
-.stat .v{font-size:30px;font-weight:800;}
-.stat .k{font-size:13px;color:var(--ink-soft);font-weight:700;margin-top:4px;}
+.stat .v{font-size:30px;font-weight:600;}
+.stat .k{font-size:13px;color:var(--ink-soft);font-weight:500;margin-top:4px;}
 .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:16px;}
 .toolbar .field{margin:0;}
 
@@ -356,6 +358,19 @@ tr:last-child td{border-bottom:none;}
    many services fit and the ticket stops being cramped. */
 @media (max-height:700px){
   :root{--topbar-h:46px;}
+  /* Every row of chrome in the ticket panel is a ticket line the cashier
+     cannot see. On a 540-tall tablet the panel is the whole job. */
+  .tickets{padding:6px 10px 0;gap:5px;}
+  .tickets .tk,.tickets .tk-add{min-height:32px;padding:0 10px;font-size:12px;}
+  .line{padding:6px 4px;gap:4px;}
+  .line .l-name{font-size:14px;}
+  .line .l-sub{font-size:12px;}
+  .line .l-tech{font-size:11px;padding:2px 8px;}
+  .line .l-total{width:58px;margin-right:4px;font-size:15px;}
+  .line .l-del{width:30px;height:38px;font-size:16px;}
+  .stepper button{width:38px;height:38px;font-size:24px;}
+  .stepper .qty{font-size:15px;}
+  .ticket-head .who{font-size:14px;}
 
   .topbar{gap:8px;padding:0 10px;}
   .brand{font-size:15px;}

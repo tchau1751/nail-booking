@@ -123,7 +123,7 @@
         '<button class="l-total" type="button" data-act="price"></button>' +
         '<button class="l-del" type="button" data-act="del">✕</button>';
       row.querySelector('.l-name').textContent = l.name;
-      row.querySelector('.l-sub').textContent = fmt(l.price) + ' each' +
+      row.querySelector('.l-sub').textContent = fmt(l.price) + (l.qty > 1 ? ' each' : '') +
         (l.discount > 0 ? ' · −' + fmt(l.discount) : '') +
         (l.tip > 0 ? ' · tip ' + fmt(l.tip) : '');
       // Only services are somebody's work. Retail belongs to the shop.
@@ -133,7 +133,7 @@
         tb.className = 'l-tech' + (l.needs_tech ? ' missing' : '');
         tb.setAttribute('data-act', 'tech');
         tb.textContent = l.technician || '⚠ Choose technician';
-        row.querySelector('.l-main').appendChild(tb);
+        row.querySelector('.l-sub').appendChild(tb);
       }
       row.querySelector('.qty').textContent = l.qty;
       var totalBtn = row.querySelector('.l-total');
@@ -223,15 +223,22 @@
     var bar = $('ticketBar');
     if (!bar) return;
     var list = s.meta.tickets || [];
-    var many = list.length > 1;
+    // One ticket needs no chips to choose between — the bar would be a row of
+    // height spent saying "you are on the only ticket there is". It appears
+    // the moment a second one exists; ＋ lives in the header either way.
+    bar.hidden = list.length < 2;
+    if (bar.hidden) { bar.innerHTML = ''; return; }
     bar.innerHTML = list.map(function (t) {
-      var label = t.name || ('Ticket ' + t.id);
-      var sub = t.count ? ' · ' + fmt(t.total) : ' · empty';
+      var label = t.name || ('#' + t.id);
       return '<button class="tk' + (t.active ? ' on' : '') + '" type="button" data-tk="' + t.id + '">' +
-        '<span>' + label + sub + '</span>' +
-        (many ? '<span class="x" data-close-tk="' + t.id + '">✕</span>' : '') + '</button>';
-    }).join('') + '<button class="tk-add" type="button" id="tkAdd">＋ Ticket</button>';
+        '<span>' + label + (t.count ? ' ' + fmt(t.total) : '') + '</span>' +
+        '<span class="x" data-close-tk="' + t.id + '">✕</span></button>';
+    }).join('');
   }
+
+  $('btnNewTicket').addEventListener('click', function () {
+    post('ticket_new', {}).then(render).catch(function () {});
+  });
 
   $('grandRow').addEventListener('click', function () {
     localStorage.setItem(FOLD_KEY, foldedNow() ? '0' : '1');
@@ -249,7 +256,6 @@
       post('ticket_close', { id: id }).then(render);
       return;
     }
-    if (ev.target.closest('#tkAdd')) { post('ticket_new', {}).then(render).catch(function () {}); return; }
     var chip = ev.target.closest('[data-tk]');
     if (chip) post('ticket_switch', { id: chip.getAttribute('data-tk') }).then(render).catch(function () {});
   });
