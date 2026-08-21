@@ -85,7 +85,7 @@ foreach (fetchAll("SELECT t.commission_rate, t.pay_type, t.supply_fee_rate,
                    FROM pos_sale_items i
                    JOIN pos_sales s ON s.id=i.sale_id
                    JOIN technicians t ON t.id = i.technician_id
-                   WHERE i.item_type='service' AND s.status='completed'
+                   WHERE i.item_type IN ('service','custom') AND s.status='completed'
                      AND DATE(s.created_at) BETWEEN ? AND ?
                    GROUP BY t.id, t.commission_rate, t.pay_type, t.supply_fee_rate", $rng) as $c) {
     if ($c['pay_type'] === 'commission') $commission += (float)$c['rev'] * (float)$c['commission_rate'] / 100;

@@ -35,7 +35,7 @@
   function withManagerApproval(run) {
     return run().catch(function (err) {
       if (!err || !err.needs_manager) return Promise.reject(err);
-      var pin = window.prompt('Manager PIN to approve this discount:');
+      var pin = window.prompt('Manager PIN to approve this:');
       if (!pin) return Promise.reject(err);
       var body = new FormData();
       body.append('pin', pin);
@@ -335,8 +335,18 @@
     var v = padValue();
     if (padMode === 'custom') {
       var nameEl = $('padName');
-      post('add_custom', { name: (nameEl && nameEl.value) || 'Custom item', price: v })
-        .then(function (s) { close('mPad'); render(s); }).catch(function () {});
+      var cname = (nameEl && nameEl.value) || 'Custom item';
+      // Same two gates a service goes through: somebody owns the work, and a
+      // hand-typed price is a manager's call.
+      chooseTech('Who is doing ' + cname + '?', lastTech)
+        .then(function (techId) {
+          lastTech = techId;
+          return withManagerApproval(function () {
+            return post('add_custom', { name: cname, price: v, technician_id: techId });
+          });
+        })
+        .then(function (s) { close('mPad'); render(s); })
+        .catch(function () {});
     } else if (padMode === 'discount_amt') {
       withManagerApproval(function () { return post('set_discount', { type: 'amount', value: v }); })
         .then(function (s) { close('mPad'); render(s); }).catch(function () {});

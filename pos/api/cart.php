@@ -112,7 +112,21 @@ try {
             $name  = trim($_POST['name'] ?? '') ?: 'Custom item';
             $price = round((float)($_POST['price'] ?? 0), 2);
             if ($price <= 0) jsonOut(['error' => 'Enter an amount above zero.'], 422);
-            cartAdd('custom', null, $name, $price, 1, null, 0);
+            // A custom line is a price typed by hand, which is a discount with
+            // extra steps: ring the $95 full set as a $60 custom and the
+            // manager approval on Discount never fires. Same gate, then.
+            if (!managerApproved()) {
+                jsonOut(['error' => 'A manager has to approve a custom amount.', 'needs_manager' => true], 403);
+            }
+            $tech = (int)($_POST['technician_id'] ?? 0) ?: null;
+            if ($tech && !fetchOne('SELECT 1 x FROM technicians WHERE id=? AND is_active=1', [$tech])) {
+                jsonOut(['error' => 'That technician is not on the floor.'], 422);
+            }
+            // Taxed on the same rule as a service, not always-taxable: a custom
+            // line at a nail bar is nearly always work, and work is untaxed in
+            // most states.
+            cartAdd('custom', null, $name, $price, 1, $tech, 1);
+            if (!hasRole('manager')) clearManagerApproval();
             break;
 
         case 'set_qty':

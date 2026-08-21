@@ -137,7 +137,9 @@ function cartSetLineTech(string $key, ?int $techId): void {
 function cartLinesMissingTech(): array {
     $missing = [];
     foreach (cart()['lines'] as $k => $l) {
-        if ($l['type'] === 'service' && empty($l['technician_id'])) $missing[$k] = $l['name'];
+        if (($l['type'] === 'service' || $l['type'] === 'custom') && empty($l['technician_id'])) {
+            $missing[$k] = $l['name'];
+        }
     }
     return $missing;
 }
@@ -156,7 +158,7 @@ function allocateTips(array $lines, float $tip): array {
 
     $base = [];
     foreach ($lines as $k => $l) {
-        if ($l['type'] !== 'service' || empty($l['technician_id'])) continue;
+        if (($l['type'] !== 'service' && $l['type'] !== 'custom') || empty($l['technician_id'])) continue;
         $net = $l['price'] * $l['qty'] - $l['discount'];
         if ($net > 0) $base[$k] = $net;
     }
@@ -205,7 +207,9 @@ function cartTotals(): array {
         $gross     = $l['price'] * $l['qty'];
         $net       = round($gross * $ratio, 2);
         $lineDisc  = round($gross - $net, 2);
-        $isTaxable = $l['taxable'] && ($l['type'] !== 'service' || $taxServices);
+        // A custom line is hand-typed work, so it follows the service rule.
+        $isWork    = $l['type'] === 'service' || $l['type'] === 'custom';
+        $isTaxable = $l['taxable'] && (!$isWork || $taxServices);
         $lineTax   = $isTaxable ? round($net * $rate, 2) : 0.0;
         $tax       += $lineTax;
         $discSpread += $lineDisc;

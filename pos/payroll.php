@@ -43,7 +43,7 @@ $rows = fetchAll(
      FROM technicians t
      LEFT JOIN (
          SELECT i.technician_id,
-                SUM(CASE WHEN i.item_type='service' THEN i.line_total - i.tax ELSE 0 END) AS service_rev,
+                SUM(CASE WHEN i.item_type IN ('service','custom') THEN i.line_total - i.tax ELSE 0 END) AS service_rev,
                 SUM(CASE WHEN i.item_type='product' THEN i.line_total - i.tax ELSE 0 END) AS product_rev,
                 SUM(CASE WHEN s.tip_method='card' THEN i.tip ELSE 0 END) AS tips_card,
                 SUM(CASE WHEN s.tip_method='cash' THEN i.tip ELSE 0 END) AS tips_cash,
