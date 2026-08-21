@@ -412,6 +412,151 @@ function checkout(array $payments): int {
     return $saleId;
 }
 
+/** Lines on a ticket with quantity still left to give back. */
+function refundableLines(int $saleId): array {
+    return fetchAll(
+        'SELECT i.*, t.name AS tech_name, (i.qty - i.refunded_qty) AS left_qty
+           FROM pos_sale_items i
+           LEFT JOIN technicians t ON t.id = i.technician_id
+          WHERE i.sale_id = ? ORDER BY i.id', [$saleId]);
+}
+
+function nextRefundNo(): string {
+    $prefix = 'R' . date('ymd');
+    $row = fetchOne("SELECT refund_no FROM pos_refunds WHERE refund_no LIKE ? ORDER BY id DESC LIMIT 1",
+                    [$prefix . '-%']);
+    $seq = $row ? ((int)substr($row['refund_no'], -4)) + 1 : 1;
+    return $prefix . '-' . str_pad((string)$seq, 4, '0', STR_PAD_LEFT);
+}
+
+/**
+ * Give part of a ticket back. $qtys maps sale_item_id => quantity returned.
+ *
+ * A void undoes a whole sale; this undoes some of it, so the arithmetic is
+ * per unit: a line's discount and tax are already baked into line_total, and
+ * one unit is that figure divided by the quantity sold.
+ *
+ * The tip is only handed back when asked for. Refunding a service does not
+ * normally claw back what the guest chose to give the technician.
+ *
+ * Returns the new refund id.
+ */
+function refundSale(int $saleId, array $qtys, string $method, string $reason = '', bool $withTip = false): int
+{
+    require_once __DIR__ . '/rewards.php';
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $sale = fetchOne('SELECT * FROM pos_sales WHERE id=? FOR UPDATE', [$saleId]);
+        if (!$sale) throw new RuntimeException('Sale not found.');
+        if ($sale['status'] === 'voided') throw new RuntimeException('That sale was voided — there is nothing to refund.');
+
+        $items = [];
+        foreach (fetchAll('SELECT * FROM pos_sale_items WHERE sale_id=?', [$saleId]) as $it) {
+            $items[(int)$it['id']] = $it;
+        }
+
+        $picked = [];
+        $sumAmount = $sumTax = $sumTip = 0.0;
+        foreach ($qtys as $itemId => $qty) {
+            $qty = (int)$qty;
+            if ($qty < 1) continue;
+            $it = $items[(int)$itemId] ?? null;
+            if (!$it) throw new RuntimeException('That line is not on this ticket.');
+
+            $left = (int)$it['qty'] - (int)$it['refunded_qty'];
+            if ($qty > $left) {
+                throw new RuntimeException($it['name'] . ': only ' . $left . ' left to refund.');
+            }
+            // Gift cards are stored value. Handing the money back would leave a
+            // live card in the guest's wallet, so those go through a void.
+            if ($it['item_type'] === 'giftcard') {
+                throw new RuntimeException('A gift card cannot be refunded here — void the sale instead.');
+            }
+
+            $soldQty = max(1, (int)$it['qty']);
+            $unitNet = ((float)$it['line_total'] - (float)$it['tax']) / $soldQty;
+            $unitTax = (float)$it['tax'] / $soldQty;
+            $unitTip = $withTip ? (float)$it['tip'] / $soldQty : 0.0;
+
+            $amount = round($unitNet * $qty, 2);
+            $tax    = round($unitTax * $qty, 2);
+            $tip    = round($unitTip * $qty, 2);
+
+            $picked[] = ['item' => $it, 'qty' => $qty, 'amount' => $amount, 'tax' => $tax, 'tip' => $tip];
+            $sumAmount += $amount; $sumTax += $tax; $sumTip += $tip;
+        }
+        if (!$picked) throw new RuntimeException('Choose at least one line to refund.');
+
+        $sumAmount = round($sumAmount, 2);
+        $sumTax    = round($sumTax, 2);
+        $sumTip    = round($sumTip, 2);
+        $total     = round($sumAmount + $sumTax + $sumTip, 2);
+
+        $admin = currentAdmin();
+        query('INSERT INTO pos_refunds (refund_no, sale_id, amount, tax, tip, total, method, reason, admin_id)
+               VALUES (?,?,?,?,?,?,?,?,?)',
+              [nextRefundNo(), $saleId, $sumAmount, $sumTax, $sumTip, $total,
+               in_array($method, ['cash', 'card', 'gift', 'other'], true) ? $method : 'cash',
+               mb_substr(trim($reason), 0, 255), $admin['id'] ?? null]);
+        $refundId = (int)$pdo->lastInsertId();
+
+        foreach ($picked as $p) {
+            $it = $p['item'];
+            query('INSERT INTO pos_refund_items (refund_id, sale_item_id, qty, amount, tax, tip)
+                   VALUES (?,?,?,?,?,?)',
+                  [$refundId, (int)$it['id'], $p['qty'], $p['amount'], $p['tax'], $p['tip']]);
+            query('UPDATE pos_sale_items SET refunded_qty = refunded_qty + ? WHERE id=?',
+                  [$p['qty'], (int)$it['id']]);
+            // Retail comes back onto the shelf. Services obviously do not.
+            if ($it['item_type'] === 'product' && $it['ref_id']) {
+                query('UPDATE pos_products SET stock_qty = stock_qty + ? WHERE id=?', [$p['qty'], $it['ref_id']]);
+            }
+        }
+
+        // Points were earned on goods and services before tax and tip, so the
+        // share handed back is measured the same way — and never more than was
+        // earned, however many part-refunds the ticket ends up with.
+        if ($sale['client_id']) {
+            $earnBase = (float)$sale['subtotal'] - (float)$sale['discount_total'];
+            $earned   = (int)$sale['points_earned'];
+            if ($earned > 0 && $earnBase > 0) {
+                $alreadyBack = (int)(fetchOne(
+                    "SELECT COALESCE(-SUM(points), 0) v FROM pos_loyalty_txns
+                      WHERE sale_id = ? AND type = 'adjust' AND points < 0", [$saleId])['v'] ?? 0);
+                $back = (int)round($earned * min(1, $sumAmount / $earnBase));
+                $back = max(0, min($back, $earned - $alreadyBack));
+                if ($back > 0) {
+                    pointsLog((int)$sale['client_id'], 'adjust', -$back, 'Refunded on sale', $saleId);
+                }
+            }
+            query('UPDATE pos_clients SET total_spend = GREATEST(0, total_spend - ?) WHERE id=?',
+                  [$total, $sale['client_id']]);
+        }
+
+        // Nothing left on any line means the whole ticket came back.
+        $outstanding = (int)(fetchOne('SELECT COALESCE(SUM(qty - refunded_qty), 0) v
+                                       FROM pos_sale_items WHERE sale_id=?', [$saleId])['v'] ?? 0);
+        if ($outstanding === 0) {
+            query("UPDATE pos_sales SET status='refunded' WHERE id=?", [$saleId]);
+            if ($sale['client_id']) {
+                query('UPDATE pos_clients SET total_visits = GREATEST(0, total_visits - 1) WHERE id=?',
+                      [$sale['client_id']]);
+                if (!empty($sale['stamp_awarded'])) {
+                    stampRevoke((int)$sale['client_id'], $saleId, 'Sale refunded');
+                    query('UPDATE pos_sales SET stamp_awarded=0 WHERE id=?', [$saleId]);
+                }
+            }
+        }
+
+        $pdo->commit();
+        return $refundId;
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
 function voidSale(int $saleId): void {
     require_once __DIR__ . '/rewards.php';
     $pdo = db();
@@ -419,6 +564,11 @@ function voidSale(int $saleId): void {
     try {
         $sale = fetchOne('SELECT * FROM pos_sales WHERE id=?', [$saleId]);
         if (!$sale || $sale['status'] !== 'completed') throw new RuntimeException('Sale cannot be voided.');
+        // Part of this ticket has already gone back. Voiding would return the
+        // stock and the points a second time, so the rest has to be refunded.
+        if (fetchOne('SELECT 1 x FROM pos_refunds WHERE sale_id=? LIMIT 1', [$saleId])) {
+            throw new RuntimeException('This ticket has already been refunded in part — refund the rest instead of voiding.');
+        }
 
         foreach (fetchAll('SELECT * FROM pos_sale_items WHERE sale_id=?', [$saleId]) as $it) {
             if ($it['item_type'] === 'product' && $it['ref_id']) {

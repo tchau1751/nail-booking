@@ -39,6 +39,7 @@ function migratePos(): array {
     $log = [];
     runSqlFile(__DIR__ . '/../schema_pos.sql', $log);
     runSqlFile(__DIR__ . '/../schema_pos_v2.sql', $log);
+    runSqlFile(__DIR__ . '/../schema_pos_v3.sql', $log);
 
     // Columns bolted onto tables that already existed before v2.
     addColumn('pos_sales', 'client_id',        'INT DEFAULT NULL', $log);
@@ -108,6 +109,10 @@ function migratePos(): array {
     // went straight into the technician's pocket at the chair.
     addColumn('pos_sale_items', 'tip', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00', $log);
     addColumn('pos_sales', 'tip_method', "ENUM('cash','card') NOT NULL DEFAULT 'card'", $log);
+
+    // How much of each line has already gone back, so a line cannot be
+    // refunded twice and the remaining quantity is always knowable.
+    addColumn('pos_sale_items', 'refunded_qty', 'INT NOT NULL DEFAULT 0', $log);
 
     // A turn is the unit of fairness in the rotation: a full set counts
     // as a whole turn, a quick polish change as a half.

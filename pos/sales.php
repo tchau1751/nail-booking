@@ -24,15 +24,19 @@ $sql = 'SELECT s.*,
                COALESCE((SELECT GROUP_CONCAT(DISTINCT t2.name ORDER BY t2.name SEPARATOR ", ")
                  FROM pos_sale_items i2 JOIN technicians t2 ON t2.id = i2.technician_id
                  WHERE i2.sale_id = s.id), t.name) AS tech_name,
-               (SELECT GROUP_CONCAT(CONCAT(p.method) SEPARATOR ", ") FROM pos_payments p WHERE p.sale_id=s.id) AS methods
+               (SELECT GROUP_CONCAT(CONCAT(p.method) SEPARATOR ", ") FROM pos_payments p WHERE p.sale_id=s.id) AS methods,
+               (SELECT COALESCE(SUM(r.total),0) FROM pos_refunds r WHERE r.sale_id=s.id) AS refunded
         FROM pos_sales s LEFT JOIN technicians t ON t.id=s.technician_id
         WHERE ' . implode(' AND ', $where) . ' ORDER BY s.id DESC LIMIT 300';
 $sales = fetchAll($sql, $args);
 
-$sum = ['count' => 0, 'total' => 0, 'tips' => 0];
+$sum = ['count' => 0, 'total' => 0, 'tips' => 0, 'refunded' => 0];
 foreach ($sales as $s) {
-    if ($s['status'] !== 'completed') continue;
-    $sum['count']++; $sum['total'] += $s['grand_total']; $sum['tips'] += $s['tip_total'];
+    if ($s['status'] === 'voided') continue;
+    $sum['count']++;
+    $sum['total']    += (float)$s['grand_total'] - (float)$s['refunded'];
+    $sum['tips']     += $s['tip_total'];
+    $sum['refunded'] += (float)$s['refunded'];
 }
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
@@ -49,7 +53,10 @@ foreach ($sales as $s) {
 
 <div class="stats">
   <div class="stat"><div class="v"><?= $sum['count'] ?></div><div class="k">Completed sales</div></div>
-  <div class="stat"><div class="v"><?= money($sum['total']) ?></div><div class="k">Collected</div></div>
+  <div class="stat"><div class="v"><?= money($sum['total']) ?></div><div class="k">Collected, net of refunds</div></div>
+  <?php if ($sum['refunded'] > 0): ?>
+    <div class="stat"><div class="v">−<?= money($sum['refunded']) ?></div><div class="k">Refunded</div></div>
+  <?php endif; ?>
   <div class="stat"><div class="v"><?= money($sum['tips']) ?></div><div class="k">Tips</div></div>
 </div>
 
@@ -72,9 +79,16 @@ foreach ($sales as $s) {
         <td><?= e($s['methods'] ?: '—') ?></td>
         <td class="num"><?= money($s['tip_total']) ?></td>
         <td class="num"><strong><?= money($s['grand_total']) ?></strong></td>
-        <td><span class="pill <?= $s['status'] === 'completed' ? 'pill-ok' : 'pill-void' ?>"><?= e($s['status']) ?></span></td>
+        <td><span class="pill <?= $s['status'] === 'completed' ? 'pill-ok' : 'pill-void' ?>"><?= e($s['status']) ?></span>
+          <?php if ((float)$s['refunded'] > 0): ?>
+            <div style="font-size:12px;color:var(--ink-soft)">−<?= money($s['refunded']) ?> back</div>
+          <?php endif; ?>
+        </td>
         <td style="white-space:nowrap">
           <a class="btn btn-light btn-sm" href="<?= BASE_PATH ?>/pos/receipt.php?id=<?= (int)$s['id'] ?>" target="_blank" rel="noopener">Receipt</a>
+          <?php if ($s['status'] !== 'voided'): ?>
+            <a class="btn btn-light btn-sm" href="<?= BASE_PATH ?>/pos/refund.php?id=<?= (int)$s['id'] ?>">Refund</a>
+          <?php endif; ?>
           <?php if ($s['status'] === 'completed'): ?>
             <form method="post" style="display:inline" onsubmit="return confirm('Void sale <?= e($s['sale_no']) ?>? Stock will be returned.')">
               <input type="hidden" name="action" value="void">

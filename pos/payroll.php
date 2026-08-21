@@ -31,6 +31,9 @@ $rng  = [$from, $to];
 // by two people splits down the middle instead of landing on whoever happened
 // to be named on the ticket header. Reports reads the same way — the two pages
 // have to agree or nobody trusts either.
+// Anything refunded comes back off the line it was refunded from: no commission
+// on work the guest did not end up paying for. Fully refunded tickets are still
+// counted here, because their surviving lines (if any) still earned.
 // Aggregate first, then join — so a technician with no sales in this range
 // still appears (with zeros) instead of dropping off the report.
 $rows = fetchAll(
@@ -43,14 +46,19 @@ $rows = fetchAll(
      FROM technicians t
      LEFT JOIN (
          SELECT i.technician_id,
-                SUM(CASE WHEN i.item_type IN ('service','custom') THEN i.line_total - i.tax ELSE 0 END) AS service_rev,
-                SUM(CASE WHEN i.item_type='product' THEN i.line_total - i.tax ELSE 0 END) AS product_rev,
-                SUM(CASE WHEN s.tip_method='card' THEN i.tip ELSE 0 END) AS tips_card,
-                SUM(CASE WHEN s.tip_method='cash' THEN i.tip ELSE 0 END) AS tips_cash,
+                SUM(CASE WHEN i.item_type IN ('service','custom')
+                         THEN i.line_total - i.tax - COALESCE(rf.amount,0) ELSE 0 END) AS service_rev,
+                SUM(CASE WHEN i.item_type='product'
+                         THEN i.line_total - i.tax - COALESCE(rf.amount,0) ELSE 0 END) AS product_rev,
+                SUM(CASE WHEN s.tip_method='card' THEN i.tip - COALESCE(rf.tip,0) ELSE 0 END) AS tips_card,
+                SUM(CASE WHEN s.tip_method='cash' THEN i.tip - COALESCE(rf.tip,0) ELSE 0 END) AS tips_cash,
                 COUNT(DISTINCT i.sale_id) AS tickets
          FROM pos_sale_items i
          JOIN pos_sales s ON s.id = i.sale_id
-         WHERE s.status='completed' AND DATE(s.created_at) BETWEEN ? AND ?
+         LEFT JOIN (SELECT sale_item_id, SUM(amount) amount, SUM(tip) tip
+                      FROM pos_refund_items GROUP BY sale_item_id) rf
+                ON rf.sale_item_id = i.id
+         WHERE s.status IN ('completed','refunded') AND DATE(s.created_at) BETWEEN ? AND ?
          GROUP BY i.technician_id
      ) r ON r.technician_id = t.id
      WHERE t.is_active = 1

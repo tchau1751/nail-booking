@@ -7,7 +7,7 @@ require_once __DIR__ . '/includes/layout_start.php';
 $from = $_GET['from'] ?? date('Y-m-d');
 $to   = $_GET['to']   ?? date('Y-m-d');
 $rng  = [$from, $to];
-$done = "status='completed' AND DATE(created_at) BETWEEN ? AND ?";
+$done = "status IN ('completed','refunded') AND DATE(created_at) BETWEEN ? AND ?";
 
 $head = fetchOne("SELECT COUNT(*) c, COALESCE(SUM(subtotal),0) sub, COALESCE(SUM(discount_total),0) disc,
                          COALESCE(SUM(tax_total),0) tax, COALESCE(SUM(tip_total),0) tip,
@@ -16,18 +16,21 @@ $head = fetchOne("SELECT COUNT(*) c, COALESCE(SUM(subtotal),0) sub, COALESCE(SUM
 
 $byMethod = fetchAll("SELECT p.method, COUNT(*) c, SUM(p.amount) amt
                       FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id
-                      WHERE s.status='completed' AND DATE(s.created_at) BETWEEN ? AND ?
+                      WHERE s.status IN ('completed','refunded') AND DATE(s.created_at) BETWEEN ? AND ?
                       GROUP BY p.method ORDER BY amt DESC", $rng);
 
 // Attribution is line-level here exactly as it is in Payroll. The two pages
 // used to disagree — Reports fell back to the ticket's technician, Payroll did
 // not — and a payout report nobody can reconcile is worse than none.
 $byTech = fetchAll("SELECT COALESCE(t.name,'Unassigned') tech, COUNT(DISTINCT i.sale_id) tickets,
-                           SUM(i.line_total) revenue
+                           SUM(i.line_total - COALESCE(rf.amount,0) - COALESCE(rf.tax,0)) revenue
                     FROM pos_sale_items i
                     JOIN pos_sales s ON s.id=i.sale_id
+                    LEFT JOIN (SELECT sale_item_id, SUM(amount) amount, SUM(tax) tax
+                                 FROM pos_refund_items GROUP BY sale_item_id) rf
+                           ON rf.sale_item_id = i.id
                     LEFT JOIN technicians t ON t.id = i.technician_id
-                    WHERE s.status='completed' AND DATE(s.created_at) BETWEEN ? AND ?
+                    WHERE s.status IN ('completed','refunded') AND DATE(s.created_at) BETWEEN ? AND ?
                     GROUP BY tech ORDER BY revenue DESC", $rng);
 
 $tipsByTech = fetchAll("SELECT COALESCE(t.name,'Unassigned') tech,
@@ -39,24 +42,34 @@ $tipsByTech = fetchAll("SELECT COALESCE(t.name,'Unassigned') tech,
                         FROM pos_sale_items i
                         JOIN pos_sales s ON s.id = i.sale_id
                         LEFT JOIN technicians t ON t.id = i.technician_id
-                        WHERE s.status='completed' AND i.tip > 0
+                        WHERE s.status IN ('completed','refunded') AND i.tip > 0
                           AND DATE(s.created_at) BETWEEN ? AND ?
                         GROUP BY tech ORDER BY tips DESC", $rng);
 
-$byItem = fetchAll("SELECT i.name, i.item_type, SUM(i.qty) qty, SUM(i.line_total) revenue
+$byItem = fetchAll("SELECT i.name, i.item_type, SUM(i.qty - i.refunded_qty) qty,
+                           SUM(i.line_total - COALESCE(rf.amount,0) - COALESCE(rf.tax,0)) revenue
                     FROM pos_sale_items i JOIN pos_sales s ON s.id=i.sale_id
-                    WHERE s.status='completed' AND DATE(s.created_at) BETWEEN ? AND ?
+                    LEFT JOIN (SELECT sale_item_id, SUM(amount) amount, SUM(tax) tax
+                                 FROM pos_refund_items GROUP BY sale_item_id) rf
+                           ON rf.sale_item_id = i.id
+                    WHERE s.status IN ('completed','refunded') AND DATE(s.created_at) BETWEEN ? AND ?
                     GROUP BY i.name, i.item_type ORDER BY revenue DESC LIMIT 25", $rng);
 
 $byDay = fetchAll("SELECT DATE(created_at) d, COUNT(*) c, SUM(grand_total) tot
                    FROM pos_sales WHERE $done GROUP BY d ORDER BY d DESC", $rng);
+
+$refund = fetchOne("SELECT COALESCE(SUM(total),0) tot, COALESCE(SUM(tax),0) tax, COALESCE(SUM(tip),0) tip,
+                           COALESCE(SUM(CASE WHEN method='cash' THEN total ELSE 0 END),0) cash
+                    FROM pos_refunds WHERE DATE(created_at) BETWEEN ? AND ?", $rng) ?: [];
+$refundTot = (float)($refund['tot'] ?? 0);
 
 $cashSales = 0;
 foreach ($byMethod as $m) if ($m['method'] === 'cash') $cashSales = (float)$m['amt'];
 $changeGiven = (float)(fetchOne("SELECT COALESCE(SUM(change_due),0) v FROM pos_sales WHERE $done", $rng)['v'] ?? 0);
 $drawer = fetchOne("SELECT COALESCE(SUM(CASE WHEN kind IN ('open','pay_in') THEN amount ELSE -amount END),0) v
                     FROM pos_cash_movements WHERE DATE(created_at) BETWEEN ? AND ?", $rng);
-$expectedCash = $cashSales - $changeGiven + (float)($drawer['v'] ?? 0);
+// Cash handed back leaves the drawer just like change does.
+$expectedCash = $cashSales - $changeGiven - (float)($refund['cash'] ?? 0) + (float)($drawer['v'] ?? 0);
 $lowStock = fetchAll('SELECT * FROM pos_products WHERE is_active=1 AND stock_qty <= low_stock_at ORDER BY stock_qty');
 
 // ── Profit & loss ────────────────────────────────────────────
@@ -66,26 +79,30 @@ $lowStock = fetchAll('SELECT * FROM pos_products WHERE is_active=1 AND stock_qty
 // line on some later ticket.
 $giftSold = (float)(fetchOne("SELECT COALESCE(SUM(i.line_total),0) v FROM pos_sale_items i
                               JOIN pos_sales s ON s.id=i.sale_id
-                              WHERE i.item_type='giftcard' AND s.status='completed'
+                              WHERE i.item_type='giftcard' AND s.status IN ('completed','refunded')
                                 AND DATE(s.created_at) BETWEEN ? AND ?", $rng)['v'] ?? 0);
-$netRevenue = (float)($head['tot'] ?? 0) - (float)($head['tax'] ?? 0) - (float)($head['tip'] ?? 0) - $giftSold;
+$netRevenue = (float)($head['tot'] ?? 0) - (float)($head['tax'] ?? 0) - (float)($head['tip'] ?? 0) - $giftSold
+            - ($refundTot - (float)($refund['tax'] ?? 0) - (float)($refund['tip'] ?? 0));
 
 $cogs = (float)(fetchOne("SELECT COALESCE(SUM(p.cost * i.qty),0) v
                           FROM pos_sale_items i
                           JOIN pos_products p ON p.id = i.ref_id
                           JOIN pos_sales s ON s.id = i.sale_id
-                          WHERE i.item_type='product' AND s.status='completed'
+                          WHERE i.item_type='product' AND s.status IN ('completed','refunded')
                             AND DATE(s.created_at) BETWEEN ? AND ?", $rng)['v'] ?? 0);
 
 $supplyOn   = (int)(posSettings()['supply_fee_enabled'] ?? 0) === 1;
 $commission = 0.0;
 $supplyKept = 0.0;
 foreach (fetchAll("SELECT t.commission_rate, t.pay_type, t.supply_fee_rate,
-                          COALESCE(SUM(i.line_total - i.tax),0) rev
+                          COALESCE(SUM(i.line_total - i.tax - COALESCE(rf.amount,0)),0) rev
                    FROM pos_sale_items i
                    JOIN pos_sales s ON s.id=i.sale_id
+                   LEFT JOIN (SELECT sale_item_id, SUM(amount) amount
+                                FROM pos_refund_items GROUP BY sale_item_id) rf
+                          ON rf.sale_item_id = i.id
                    JOIN technicians t ON t.id = i.technician_id
-                   WHERE i.item_type IN ('service','custom') AND s.status='completed'
+                   WHERE i.item_type IN ('service','custom') AND s.status IN ('completed','refunded')
                      AND DATE(s.created_at) BETWEEN ? AND ?
                    GROUP BY t.id, t.commission_rate, t.pay_type, t.supply_fee_rate", $rng) as $c) {
     if ($c['pay_type'] === 'commission') $commission += (float)$c['rev'] * (float)$c['commission_rate'] / 100;
@@ -119,6 +136,9 @@ $netProfit  = round($netRevenue - $cogs - $commission - $expenseTot, 2);
   <div class="stat"><div class="v"><?= money($head['tot'] ?? 0) ?></div><div class="k">Gross collected</div></div>
   <div class="stat"><div class="v"><?= money($head['tip'] ?? 0) ?></div><div class="k">Tips</div></div>
   <div class="stat"><div class="v"><?= money(($head['c'] ?? 0) ? $head['tot'] / $head['c'] : 0) ?></div><div class="k">Average ticket</div></div>
+  <?php if ($refundTot > 0): ?>
+    <div class="stat"><div class="v">−<?= money($refundTot) ?></div><div class="k">Refunded</div></div>
+  <?php endif; ?>
   <div class="stat"><div class="v"><?= money($expectedCash) ?></div><div class="k">Cash expected in drawer</div></div>
 </div>
 
@@ -186,7 +206,7 @@ $netProfit  = round($netRevenue - $cogs - $commission - $expenseTot, 2);
   <h2>💰 Profit &amp; loss</h2>
   <p class="sub">
     Revenue is what the salon actually earned — tax and tips are stripped out because that money is never yours,
-    and gift card sales are held back until the card is spent.
+    gift card sales are held back until the card is spent, and anything refunded is taken back out.
     <a href="<?= BASE_PATH ?>/pos/expenses.php" class="no-print">Record expenses →</a>
   </p>
   <div class="table-wrap">
@@ -196,6 +216,10 @@ $netProfit  = round($netRevenue - $cogs - $commission - $expenseTot, 2);
         <tr><td style="padding-left:28px;color:var(--ink-soft)">less tax collected</td><td class="num">−<?= money($head['tax'] ?? 0) ?></td></tr>
         <tr><td style="padding-left:28px;color:var(--ink-soft)">less tips (paid to techs)</td><td class="num">−<?= money($head['tip'] ?? 0) ?></td></tr>
         <tr><td style="padding-left:28px;color:var(--ink-soft)">less gift cards sold (deferred)</td><td class="num">−<?= money($giftSold) ?></td></tr>
+        <?php if ($refundTot > 0): ?>
+          <tr><td style="padding-left:28px;color:var(--ink-soft)">less refunds (excl. their tax and tips)</td>
+              <td class="num">−<?= money($refundTot - (float)($refund['tax'] ?? 0) - (float)($refund['tip'] ?? 0)) ?></td></tr>
+        <?php endif; ?>
         <tr style="font-weight:800;background:#faf7f5"><td>Net revenue</td><td class="num"><?= money($netRevenue) ?></td></tr>
         <tr><td>Cost of retail goods sold</td><td class="num">−<?= money($cogs) ?></td></tr>
         <tr><td>Technician commission</td><td class="num">−<?= money($commission) ?></td></tr>
