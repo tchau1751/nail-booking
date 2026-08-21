@@ -222,6 +222,15 @@ $policies = fetchAll('SELECT * FROM pos_consent_templates ORDER BY id');
   </form>
 </div>
 
+<?php if (hasRole('owner')): ?>
+<div class="card">
+  <h2>Clearing test data</h2>
+  <p class="sub">Practice tickets from before opening day, or a full reset back to a clean set of
+     books. Owner only, and it asks you to type the words before it does anything.</p>
+  <a class="btn btn-red" href="<?= BASE_PATH ?>/pos/reset.php">Open clear test data →</a>
+</div>
+<?php endif; ?>
+
 <div class="card">
   <h2>Cash drawer</h2>
   <p class="sub">Record the opening float and any money in or out, so the Reports page can tell you what should be in the till.</p>
