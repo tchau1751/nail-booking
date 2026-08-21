@@ -39,6 +39,7 @@ $navMin = [   // minimum role for each screen; everything else is open to staff
     'products' => 'manager', 'reports' => 'manager', 'payroll' => 'manager',
     'marketing' => 'manager', 'feedback' => 'manager', 'settings' => 'manager',
     'staff' => 'manager',   // the page itself keeps owners-only actions owner-only
+    'lookbook' => 'manager',
 ];
 $navItems  = [
     'register'  => ['💅', 'Register',  'index.php'],
@@ -53,6 +54,7 @@ $navItems  = [
     'payroll'   => ['💵', 'Payroll',   'payroll.php'],
     'marketing' => ['📣', 'Marketing', 'marketing.php'],
     'feedback'  => ['⭐', 'Feedback',  'feedback.php'],
+    'lookbook'  => ['🎨', 'Designs',   'lookbook.php'],
     'settings'  => ['⚙️', 'Settings',  'settings.php'],
     'staff'     => ['👤', 'Staff',     'staff.php'],
 ];

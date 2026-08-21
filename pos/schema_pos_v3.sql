@@ -44,3 +44,25 @@ CREATE TABLE IF NOT EXISTS pos_counters (
   name VARCHAR(40) NOT NULL PRIMARY KEY,
   seq  INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB;
+
+-- What the salon paints with, and what it can paint. Both are set up once and
+-- then referenced at the chair: the brand list narrows the colour conversation,
+-- the design photos are the book a guest flips through while they decide.
+CREATE TABLE IF NOT EXISTS pos_polish_brands (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  name          VARCHAR(80) NOT NULL UNIQUE,
+  is_active     TINYINT(1)  NOT NULL DEFAULT 0,
+  display_order INT         NOT NULL DEFAULT 0
+) ENGINE=InnoDB;
+
+INSERT IGNORE INTO pos_polish_brands (name, is_active, display_order) VALUES
+ ('OPI',0,1),('DND',0,2),('BND',0,3),('Gelish',0,4),('Kiara Sky',0,5),
+ ('LDS',0,6),('SNS',0,7),('Essie',0,8),('China Glaze',0,9),('CND Shellac',0,10);
+
+CREATE TABLE IF NOT EXISTS pos_nail_designs (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  image_url     VARCHAR(400) NOT NULL,
+  caption       VARCHAR(160) NOT NULL DEFAULT '',
+  display_order INT NOT NULL DEFAULT 0,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
