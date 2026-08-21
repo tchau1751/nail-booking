@@ -223,7 +223,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .stepper button[data-act=dec]{order:-1;}
 .stepper button[data-act=inc]{order:3;}
 .stepper .qty{order:1;min-width:26px;text-align:center;font-weight:800;font-size:18px;}
-.line .l-total{order:2;width:66px;text-align:right;font-weight:800;font-size:17px;
+.line .l-total{order:2;width:66px;margin-right:6px;text-align:right;font-weight:800;font-size:17px;
   background:none;border:1px solid transparent;border-radius:8px;font-family:inherit;
   color:inherit;cursor:pointer;padding:4px 2px;}
 .line .l-total:hover,.line .l-total:focus{border-color:var(--line);background:var(--card);}
@@ -243,6 +243,14 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
    cluttering the right-side panel; the fix only changes what shows when a
    row's amount is genuinely zero, nothing about how totals are calculated. */
 .totals .row[hidden]{display:none;}
+/* Folded: only the big number survives, and the ticket lines get the room. */
+.totals.folded .row:not(.grand){display:none;}
+.totals .grand{width:100%;border:none;background:none;font-family:inherit;text-align:left;cursor:pointer;}
+.totals .grand::after{content:'⌄';margin-left:8px;font-size:13px;opacity:.45;}
+.totals.folded .grand::after{content:'⌃';}
+.paybreak{padding:0 0 10px;overflow:visible;border-top:none;background:none;}
+.paybreak .grand{cursor:default;}
+.paybreak .grand::after{content:'';}
 .totals .row b{color:var(--ink);}
 /* The Total row is formatted exactly like Subtotal and Tip — bold and ruled
    off, but the same size. No font-size is set anywhere on it on purpose: it
@@ -324,8 +332,17 @@ tr:last-child td{border-bottom:none;}
 /* ── Narrow tablets / phones: ticket becomes a bottom sheet ─ */
 @media (max-width:900px){
   .screen{flex-direction:column;height:calc(100vh - var(--topbar-h));}
-  .ticket{max-width:none;min-width:0;flex:1 1 46%;}
-  .catalog{flex:1 1 54%;}
+  .ticket{max-width:none;min-width:0;flex:1 1 50%;}
+  .catalog{flex:1 1 50%;}
+  /* Stacked, the ticket panel has half the height it gets side by side, but
+     the action grid was still sized for the tall version: two columns of 52px
+     buttons is four rows, which swallowed the panel and left the lines a
+     sliver. The compact rules below were keyed on screen HEIGHT, and a
+     portrait iPad is 1024 tall — so they never fired on the one layout that
+     needed them most. Same buttons, tighter, and the lines get the room. */
+  .ticket-actions{grid-template-columns:repeat(3,1fr);gap:6px;padding:8px 10px;}
+  .ticket-actions .btn{min-height:42px;font-size:12px;padding:0 6px;}
+  .ticket-actions .pay{grid-column:1 / -1;min-height:56px;font-size:18px;}
   .topnav .lbl{display:none;}
   .topright .who,.topright .clock{display:none;}
   .tiles{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));}

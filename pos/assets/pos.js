@@ -10,6 +10,7 @@
   var state = null;                 // last ticket payload from the server
   var lastTech = null;              // pre-selects the picker; a ticket is usually one person
   var HOLD_KEY = 'pos_held_ticket';
+  var FOLD_KEY = 'pos_totals_folded';
 
   var $ = function (id) { return document.getElementById(id); };
   function fmt(n) { return cur + (Math.round(n * 100) / 100).toFixed(2); }
@@ -90,6 +91,17 @@
     t.style.display = 'block';
     clearTimeout(t._h);
     t._h = setTimeout(function () { t.style.display = 'none'; }, 2600);
+  }
+
+  /**
+   * The breakdown folds away so the ticket lines get the height. It is a
+   * per-tablet preference, not a shop setting: the iPad by the pedicure
+   * chairs wants the room, the desktop in the office does not.
+   */
+  function foldedNow() { return localStorage.getItem(FOLD_KEY) !== '0'; }
+  function paintFold() {
+    var box = document.querySelector('.ticket .totals');
+    if (box) box.classList.toggle('folded', foldedNow());
   }
 
   /* ── Painting ─────────────────────────────────────────── */
@@ -198,6 +210,7 @@
       (s.meta.appointment_id ? ' · booking #' + s.meta.appointment_id : '');
 
     paintTickets(s);
+    paintFold();
     paintHold();
   }
 
@@ -219,6 +232,11 @@
         (many ? '<span class="x" data-close-tk="' + t.id + '">✕</span>' : '') + '</button>';
     }).join('') + '<button class="tk-add" type="button" id="tkAdd">＋ Ticket</button>';
   }
+
+  $('grandRow').addEventListener('click', function () {
+    localStorage.setItem(FOLD_KEY, foldedNow() ? '0' : '1');
+    paintFold();
+  });
 
   $('ticketBar').addEventListener('click', function (ev) {
     var x = ev.target.closest('[data-close-tk]');
@@ -636,6 +654,7 @@
       return;
     }
     $('payDue').textContent = 'Due ' + fmt(due);
+    paintPayBreak();
     $('payAmount').value = due.toFixed(2);
     $('payRef').value = '';
     $('payMsg').innerHTML = '';
@@ -651,6 +670,22 @@
     $('quickCash').innerHTML = html;
     open('mPay');
   });
+
+  /** The full breakdown, on the one screen where hiding it would be wrong. */
+  function paintPayBreak() {
+    var t = state.totals, rows = [];
+    rows.push(['Subtotal', fmt(t.subtotal)]);
+    if (t.discount > 0)     rows.push(['Discount', '−' + fmt(t.discount)]);
+    if (t.tax > 0)          rows.push([t.tax_label + ' (' + t.tax_rate + '%)', fmt(t.tax)]);
+    if (t.tip > 0)          rows.push(['Tip', fmt(t.tip)]);
+    if (t.gift > 0)         rows.push(['Gift card', '−' + fmt(t.gift)]);
+    if (t.points_value > 0) rows.push(['Points', '−' + fmt(t.points_value)]);
+    $('payBreak').innerHTML = rows.map(function (r) {
+      return '<div class="row"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>';
+    }).join('') +
+      '<div class="row grand"><span>' + (t.gift + t.points_value > 0 ? 'Still due' : 'Total') +
+      '</span><span>' + fmt(t.due > 0 ? t.due : t.total) + '</span></div>';
+  }
 
   $('quickCash').addEventListener('click', function (ev) {
     var c = ev.target.closest('.chip'); if (!c) return;

@@ -145,7 +145,11 @@ $tipPresets = array_filter(array_map('trim', explode(',', posSettings()['tip_pre
     <div class="row" id="rowPoints" hidden><span>Points</span><b id="tPoints">—</b></div>
     <!-- Sized by pos.css, not inline: an inline font-size cannot be overridden
          by the stylesheet's screen-size rules. -->
-    <div class="row grand"><span id="grandLabel">Total</span><span id="tTotal">—</span></div>
+    <!-- Tap the total to fold the breakdown away. On a tablet those rows are
+         the difference between seeing four ticket lines and seeing seven, and
+         the full breakdown is in front of you again the moment you charge. -->
+    <button class="row grand" type="button" id="grandRow" title="Tap to show or hide the breakdown">
+      <span id="grandLabel">Total</span><span id="tTotal">—</span></button>
   </div>
 
   <div class="ticket-actions">
@@ -279,6 +283,8 @@ $tipPresets = array_filter(array_map('trim', explode(',', posSettings()['tip_pre
   <div class="modal-box">
     <h3>Take payment</h3>
     <div class="amount-display" id="payDue">0.00</div>
+    <!-- Always spelled out here, whatever the ticket panel is showing. -->
+    <div class="totals paybreak" id="payBreak"></div>
     <div class="chips" id="payMethods">
       <button class="chip active" type="button" data-m="cash">💵 Cash</button>
       <button class="chip" type="button" data-m="card">💳 Card</button>
