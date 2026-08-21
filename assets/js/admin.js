@@ -28,7 +28,21 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Mobile menu
-  $('#menuToggle').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
+  // Below 768 the sidebar slides over the page; above it, it folds away and
+  // gives the width back. Either way the same ☰ is the way out.
+  $('#menuToggle').addEventListener('click', () => {
+    if (window.matchMedia('(max-width:768px)').matches) {
+      $('#sidebar').classList.toggle('open');
+      return;
+    }
+    const off = document.body.classList.toggle('nav-collapsed');
+    localStorage.setItem('admin_nav_collapsed', off ? '1' : '0');
+    // FullCalendar measures once and caches it, so it has to be told.
+    if (calendarInstance) setTimeout(() => calendarInstance.updateSize(), 220);
+  });
+  if (localStorage.getItem('admin_nav_collapsed') === '1') {
+    document.body.classList.add('nav-collapsed');
+  }
 
   // Modal close
   $('#modalClose').addEventListener('click', closeModal);
@@ -127,6 +141,13 @@ function pageCalendar() {
     <div class="card" style="height:calc(100vh - 140px);min-height:430px;display:flex;flex-direction:column">
       <div id="cal" style="flex:1;min-height:0"></div>
     </div>`;
+  // The calendar is the page that wants the room most, so it asks for it once.
+  // The toggle still wins from then on — this only fires the first time.
+  if (!window.matchMedia('(max-width:768px)').matches
+      && localStorage.getItem('admin_nav_collapsed') === null) {
+    document.body.classList.add('nav-collapsed');
+    localStorage.setItem('admin_nav_collapsed', '1');
+  }
   calendarInstance = new FullCalendar.Calendar($('#cal'), {
     // Open on the whole month so the owner sees the shape of the week
     // at a glance; the toolbar switches to week or day for detail.

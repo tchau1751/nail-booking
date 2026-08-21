@@ -65,7 +65,15 @@ body{font-family:var(--font-body);background:var(--ivory);color:var(--espresso);
 
 /* TOPBAR */
 .topbar{background:var(--white);border-bottom:1px solid var(--taupe);display:flex;align-items:center;gap:16px;padding:0 28px;box-shadow:0 1px 0 var(--taupe)}
-.menu-toggle{display:none;background:none;border:none;font-size:20px;cursor:pointer}
+.menu-toggle{display:block;background:none;border:none;font-size:20px;cursor:pointer;
+  padding:6px 10px;border-radius:8px;line-height:1}
+.menu-toggle:hover{background:rgba(0,0,0,.06)}
+/* Collapsed: the sidebar folds away and the page takes the whole width. The
+   calendar is the reason — a month grid on a 960px tablet was living in 700
+   after the 256px of navigation took its cut. */
+.dashboard.nav-collapsed{grid-template-columns:0 1fr}
+.dashboard.nav-collapsed .sidebar{width:0;min-width:0;padding:0;overflow:hidden;border:none}
+.dashboard.nav-collapsed .sidebar *{display:none}
 .page-title{font-family:var(--font-display);font-size:20px;font-weight:600;flex:1}
 .admin-badge{background:var(--blush);color:var(--plum);padding:4px 10px;border-radius:50px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
 
