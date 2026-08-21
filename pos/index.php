@@ -27,7 +27,10 @@ foreach ($services as $s) {
     // No duration on the till tiles: ringing up needs the name and the price,
     // and the minutes only crowd the tile. Booking still uses the duration.
     $catalog[] = ['kind'=>'service','id'=>(int)$s['id'],'name'=>$s['name'],
-                  'cat'=>'Services','meta'=>'','price'=>(float)$s['price'],
+                  // Tab by the service's own category — Pedicure, Waxing, Eyelash —
+                  // the way the menu on the wall is grouped. Every service in one
+                  // "Services" pile meant scrolling past waxing to reach a fill.
+                  'cat'=>$s['category'] ?: 'Services','meta'=>'','price'=>(float)$s['price'],
                   'stock'=>null,'img'=>$s['image_url'] ?? ''];
 }
 foreach ($products as $p) {
