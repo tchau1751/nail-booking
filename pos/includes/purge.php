@@ -185,6 +185,10 @@ function purgeAll(array $opts): array
                   'pos_tech_shifts', 'pos_checkins', 'pos_sales'] as $t) {
             db()->exec("DELETE FROM `$t`");
         }
+        // Back to opening day means back to ticket 0001. The counters are only
+        // there to stop two tills picking the same number; with no tickets left
+        // there is nothing for them to collide with.
+        db()->exec('DELETE FROM pos_counters');
         if (!empty($opts['giftcards'])) {
             db()->exec('DELETE FROM pos_gift_cards');
         } else {
