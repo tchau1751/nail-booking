@@ -10,17 +10,18 @@ $admin = currentAdmin();
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Dashboard — Diamond Nail &amp; Spa</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/main.min.css" rel="stylesheet">
-<link rel="stylesheet" href="<?= BASE_PATH ?>/assets/css/admin.css?t=<?= time() ?>">
+<link rel="stylesheet" href="<?= BASE_PATH ?>/assets/css/admin.css?v=<?= @filemtime(__DIR__ . '/../assets/css/admin.css') ?>">
 <style>
 html, body { overflow: auto !important; }
 .main-content { padding: 12px 28px 28px !important; display: block !important; }
-.fc { height: auto !important; display: block !important; }
+/* No height rules on .fc or .fc-daygrid-body here. FullCalendar sizes its own
+   view harness from the height option, and forcing height:auto !important on
+   top of that collapsed the harness to 0 — the grid was built, 42 day cells
+   and all, but nothing was tall enough to see. Only cosmetics below. */
 .fc .fc-toolbar { padding: 8px 0 !important; margin-bottom: 6px !important; background: #f5f5f5 !important; border-radius: 12px !important; }
 .fc .fc-toolbar-title { font-size: 16px !important; }
 .fc .fc-button { padding: 4px 12px !important; font-size: 12px !important; }
 .fc .fc-col-header-cell { padding: 6px 2px !important; font-size: 12px !important; }
-.fc .fc-daygrid-body { height: auto !important; }
 </style>
 </head>
 <body class="dashboard">
@@ -53,7 +54,7 @@ html, body { overflow: auto !important; }
   <button class="menu-toggle" id="menuToggle">☰</button>
   <h2 class="page-title" id="pageTitle">Overview</h2>
   <div class="topbar-right">
-    <a href="<?= BASE_PATH ?>/studio/stamp-cards.php" class="btn btn-primary btn-sm" style="text-decoration:none;background:#c9a87d;margin-right:8px;">🎫 Stamp Cards</a>
+    <a href="<?= BASE_PATH ?>/pos/stamps.php" class="btn btn-primary btn-sm" style="text-decoration:none;background:#c9a87d;margin-right:8px;">🎫 Stamp Cards</a>
     <a href="<?= BASE_PATH ?>/" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none">🌐 View site</a>
   </div>
 </header>
@@ -76,7 +77,9 @@ html, body { overflow: auto !important; }
   window.BASE_PATH = '<?= BASE_PATH ?>';
   window.APP_URL   = '<?= APP_URL ?>';
 </script>
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/main.min.js"></script>
-<script src="<?= BASE_PATH ?>/assets/js/admin.js"></script>
+<!-- FullCalendar v6 ships one bundle that injects its own CSS. Served locally
+     so the salon keeps working when the internet does not. -->
+<script src="<?= BASE_PATH ?>/assets/vendor/fullcalendar.min.js"></script>
+<script src="<?= BASE_PATH ?>/assets/js/admin.js?v=<?= @filemtime(__DIR__ . '/../assets/js/admin.js') ?>"></script>
 </body>
 </html>

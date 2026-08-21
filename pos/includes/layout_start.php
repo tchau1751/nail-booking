@@ -72,7 +72,7 @@ foreach ($navItems as $k => $v) {
     <!-- The signed-in name is not shown at the till — it takes room on the
          tablet's top bar and the guest can see it. It still prints on the
          receipt as the cashier, and the title below says who is signed in. -->
-    <a class="btn btn-ghost" href="<?= BASE_PATH ?>/studio/">Studio</a>
+    <a class="btn btn-ghost" href="<?= BASE_PATH ?>/studio/sms-log.php">SMS log</a>
     <a class="btn btn-ghost" href="<?= BASE_PATH ?>/admin/logout.php"
        title="Signed in as <?= e($admin['name'] ?? '') ?>">Sign out</a>
   </div>
