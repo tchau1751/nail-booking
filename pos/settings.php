@@ -57,6 +57,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
             }
             $msg = 'Business hours saved.';
+        } elseif (($_POST['action'] ?? '') === 'booking') {
+            query('UPDATE business_settings SET slot_interval_minutes=?, booking_notice_hours=?,
+                   reminder_hours_before=?, sms_sender=?, twilio_account_sid=?,
+                   twilio_from_number=? WHERE id=1', [
+                max(5, min(120, (int)$_POST['slot_interval_minutes'])),
+                max(0, min(168, (int)$_POST['booking_notice_hours'])),
+                max(0, min(168, (int)$_POST['reminder_hours_before'])),
+                trim($_POST['sms_sender']),
+                trim($_POST['twilio_account_sid']),
+                trim($_POST['twilio_from_number']),
+            ]);
+            // The auth token is a secret: it is never rendered back into the
+            // form, so an empty box means "leave it alone" rather than "clear
+            // it". Clearing is its own explicit tick.
+            if (isset($_POST['twilio_clear'])) {
+                query("UPDATE business_settings SET twilio_auth_token='' WHERE id=1");
+            } elseif (trim((string)($_POST['twilio_auth_token'] ?? '')) !== '') {
+                query('UPDATE business_settings SET twilio_auth_token=? WHERE id=1',
+                      [trim($_POST['twilio_auth_token'])]);
+            }
+            $msg = 'Appointment and text settings saved.';
         } elseif (($_POST['action'] ?? '') === 'loyalty') {
             query('UPDATE pos_settings SET loyalty_enabled=?, points_per_dollar=?, point_value_cents=?,
                    points_min_redeem=?, feedback_enabled=? WHERE id=1', [
@@ -209,6 +230,54 @@ $policies = fetchAll('SELECT * FROM pos_consent_templates ORDER BY id');
       </table>
     </div>
     <button class="btn btn-green" type="submit" style="margin-top:14px">Save business hours</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>📅 Appointments &amp; text messages</h2>
+  <p class="sub">How the booking site offers times, and how reminders go out. These were only
+     reachable from the old booking admin — they belong with the rest of the salon's settings.</p>
+  <form method="post">
+    <input type="hidden" name="action" value="booking">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+      <label class="field"><span>Slot interval (minutes)</span>
+        <input type="number" name="slot_interval_minutes" min="5" max="120" step="5"
+               value="<?= (int)($biz['slot_interval_minutes'] ?? 30) ?>"></label>
+      <label class="field"><span>Earliest booking (hours ahead)</span>
+        <input type="number" name="booking_notice_hours" min="0" max="168"
+               value="<?= (int)($biz['booking_notice_hours'] ?? 2) ?>"></label>
+      <label class="field"><span>Reminder text (hours before)</span>
+        <input type="number" name="reminder_hours_before" min="0" max="168"
+               value="<?= (int)($biz['reminder_hours_before'] ?? 24) ?>"></label>
+      <label class="field"><span>Text sender name</span>
+        <input type="text" name="sms_sender" maxlength="30"
+               value="<?= e($biz['sms_sender'] ?? '') ?>"></label>
+    </div>
+
+    <h3 style="font-size:15px;margin:18px 0 6px">Twilio</h3>
+    <p class="sub" style="margin:0 0 10px">What the confirmations and reminders are sent through.
+       Filled in here, these override whatever is in <code>config/config.php</code> — which is the
+       right place for them, because that file is in version control and these are not meant to be.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+      <label class="field"><span>Account SID</span>
+        <input type="text" name="twilio_account_sid" autocomplete="off"
+               value="<?= e($biz['twilio_account_sid'] ?? '') ?>" placeholder="AC…"></label>
+      <label class="field"><span>From number</span>
+        <input type="text" name="twilio_from_number" autocomplete="off"
+               value="<?= e($biz['twilio_from_number'] ?? '') ?>" placeholder="+12025551234"></label>
+      <label class="field"><span>Auth token</span>
+        <input type="password" name="twilio_auth_token" autocomplete="new-password"
+               placeholder="<?= !empty($biz['twilio_auth_token']) ? '•••••••• stored — leave blank to keep' : 'not set' ?>"></label>
+    </div>
+    <?php if (!empty($biz['twilio_auth_token'])): ?>
+      <label style="display:block;font-weight:700;margin:6px 0 14px">
+        <input type="checkbox" name="twilio_clear"> Clear the stored auth token
+      </label>
+    <?php endif; ?>
+    <p class="sub" style="margin:6px 0 14px">The token is never printed back into this page. An empty
+       box leaves it as it is; clearing it is the tick above.</p>
+
+    <button class="btn btn-green" type="submit">Save appointment settings</button>
   </form>
 </div>
 
