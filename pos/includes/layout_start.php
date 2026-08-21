@@ -82,12 +82,37 @@ foreach ($navItems as $k => $v) {
 
 <header class="topbar">
   <div class="brand">💎 <span>Diamond POS</span></div>
+<?php
+// Fifteen screens will not fit across a tablet's top bar — on the salon's own
+// device the strip needs 1544px and has 575, so ten of them sat off the edge
+// behind a sideways swipe nobody thinks to try. The five used all day stay out
+// front; the rest live one tap away under More, which at least announces that
+// there is more.
+$navFront = ['register', 'queue', 'clients', 'sales', 'stamps'];
+$navPrimary = array_intersect_key($navItems, array_flip($navFront));
+$navRest    = array_diff_key($navItems, $navPrimary);
+$restActive = isset($navRest[$activeNav]);
+?>
   <nav class="topnav">
-    <?php foreach ($navItems as $key => [$icon, $label, $href]): ?>
+    <?php foreach ($navPrimary as $key => [$icon, $label, $href]): ?>
       <a href="<?= BASE_PATH ?>/pos/<?= $href ?>" class="<?= $activeNav === $key ? 'active' : '' ?>">
         <span class="ico"><?= $icon ?></span><span class="lbl"><?= $label ?></span>
       </a>
     <?php endforeach; ?>
+    <?php if ($navRest): ?>
+      <details class="navmore"<?= $restActive ? ' open' : '' ?>>
+        <summary class="<?= $restActive ? 'active' : '' ?>">
+          <span class="ico">☰</span><span class="lbl">More</span>
+        </summary>
+        <div class="navmore-panel">
+          <?php foreach ($navRest as $key => [$icon, $label, $href]): ?>
+            <a href="<?= BASE_PATH ?>/pos/<?= $href ?>" class="<?= $activeNav === $key ? 'active' : '' ?>">
+              <span class="ico"><?= $icon ?></span><span><?= $label ?></span>
+            </a>
+          <?php endforeach; ?>
+        </div>
+      </details>
+    <?php endif; ?>
   </nav>
   <div class="topright">
     <span class="clock" id="posClock"></span>

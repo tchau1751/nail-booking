@@ -60,8 +60,8 @@ $tipPresets = array_filter(array_map('trim', explode(',', posSettings()['tip_pre
 
   <div class="tiles" id="tiles">
     <button class="tile custom" data-cat="__all" data-name="custom item" type="button" id="tileCustom">
-      <div class="t-name">＋ Custom amount</div>
-      <div class="t-meta">Add-on or off-menu work · manager approves</div>
+      <div class="t-name">＋ Custom</div>
+      <div class="t-meta">Off-menu · manager</div>
     </button>
     <?php foreach ($catalog as $it):
       $out = $it['kind'] === 'product' && $it['stock'] !== null && $it['stock'] <= 0; ?>
