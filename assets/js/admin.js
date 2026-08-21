@@ -124,15 +124,39 @@ async function pageOverview() {
 // ─────────────────────────────────────────────────────────────
 function pageCalendar() {
   $('#mainContent').innerHTML = `
-    <div class="card" style="height:calc(100vh - 140px)">
-      <div id="cal"></div>
+    <div class="card" style="height:calc(100vh - 140px);min-height:430px;display:flex;flex-direction:column">
+      <div id="cal" style="flex:1;min-height:0"></div>
     </div>`;
   calendarInstance = new FullCalendar.Calendar($('#cal'), {
-    initialView: 'timeGridWeek',
-    headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
+    // Open on the whole month so the owner sees the shape of the week
+    // at a glance; the toolbar switches to week or day for detail.
+    initialView: 'dayGridMonth',
+    // Fill the card rather than draw at a natural 700px and spill out of it.
+    // On the salon's 540-tall tablet the card is 400px, so a month grid drawn
+    // at its own size hung 300px below the white box it was supposed to be in.
+    height: '100%',
+    headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' },
+    buttonText: { today: 'Today', month: 'Month', week: 'Week', day: 'Day', list: 'List' },
+    views: {
+      dayGridMonth: { dayMaxEventRows: 4 },   // "+2 more" rather than a stretched cell
+      listWeek:     { noEventsContent: 'No bookings this week' },
+    },
+    firstDay: 1,                 // salons think in Mon-Sun weeks
+    // The red line is the current time. FullCalendar only draws it on the
+    // time grids, so it shows in Week and Day, not in the Month squares.
+    nowIndicator: true,
+    scrollTime: '09:00:00',      // week/day open at the start of trade, not midnight
+    // Drag a booking to move it. The length is kept by the server, so a
+    // 45-minute service stays 45 minutes wherever it lands.
+    editable: true,
+    eventStartEditable: true,
+    eventDurationEditable: false,
+    eventDrop: onEventMoved,
     slotMinTime: '08:00:00',
     slotMaxTime: '21:00:00',
     allDaySlot: true,
+    expandRows: true,
+    stickyHeaderDates: true,
     height: '100%',
     events: async (info, successCb, failureCb) => {
       const res = await api(`${BP}/api/calendar.php?start=${info.startStr.substr(0,10)}&end=${info.endStr.substr(0,10)}`);
@@ -142,17 +166,59 @@ function pageCalendar() {
     eventClick(info) {
       const e = info.event;
       const p = e.extendedProps;
+      const day = e.startStr.substr(0, 10);
       openModal(`
         <h3>${esc(e.title)}</h3>
-        <p><strong>Time:</strong> ${e.startStr?.substr(11,5)} – ${e.endStr?.substr(11,5)}</p>
+        <p><strong>When:</strong> ${day} &nbsp; ${e.startStr?.substr(11,5)} – ${e.endStr?.substr(11,5)}</p>
         <p><strong>Status:</strong> <span class="badge badge-${p.status}">${p.status}</span></p>
+        <label class="form-group"><span>Change status</span>
+          <select id="calStatus">
+            ${['pending','confirmed','completed','cancelled'].map(st =>
+              `<option value="${st}" ${st === p.status ? 'selected' : ''}>${st}</option>`).join('')}
+          </select>
+        </label>
+        <p class="muted" style="font-size:13px">Drag the booking on the calendar to move it to another time.</p>
         <div class="form-actions">
           <button class="btn btn-secondary" onclick="closeModal()">Close</button>
-          <button class="btn btn-primary" onclick="closeModal();loadPage('appointments')">View appointments</button>
+          <button class="btn btn-primary" onclick="saveCalStatus(${e.id})">Save status</button>
         </div>`);
     },
   });
   calendarInstance.render();
+}
+
+/** Persists a drag, and puts the booking back where it was if the save fails. */
+async function onEventMoved(info) {
+  const e = info.event;
+  const res = await api(BP + '/api/appointments.php', {
+    method: 'PATCH',
+    body: JSON.stringify({
+      action: 'move',
+      id: Number(e.id),
+      date: e.startStr.substr(0, 10),
+      start: e.startStr.substr(11, 8) || '09:00:00',
+    }),
+  });
+  if (!res || !res.success) {
+    info.revert();
+    alert((res && res.error) || 'Could not move that booking.');
+  }
+}
+
+/** Status change from the calendar's own popup. */
+async function saveCalStatus(id) {
+  const sel = $('#calStatus');
+  if (!sel) return;
+  const res = await api(BP + '/api/appointments.php', {
+    method: 'PATCH',
+    body: JSON.stringify({ id: Number(id), status: sel.value }),
+  });
+  if (res && res.success) {
+    closeModal();
+    if (calendarInstance) calendarInstance.refetchEvents();
+  } else {
+    alert((res && res.error) || 'Could not update that booking.');
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -563,7 +629,7 @@ async function pageSettings() {
         <h3 style="font-family:var(--font-display);font-size:17px;margin-bottom:8px">Twilio SMS Configuration</h3>
         <p style="font-size:12px;color:rgba(58,42,36,.55);margin-bottom:16px">Get credentials at <a href="https://twilio.com/console" target="_blank" style="color:var(--rosegold)">twilio.com/console</a></p>
         <div class="field"><label>Account SID</label><input id="tSID" value="${esc(s.twilio_account_sid||'')}" placeholder="ACxxxxxxxxxxxx"></div>
-        <div class="field"><label>Auth Token</label><input id="tTok" type="password" value="${esc(s.twilio_auth_token||'')}" placeholder="••••••••"></div>
+        <div class="field"><label>Auth Token</label><input id="tTok" type="password" value="" autocomplete="new-password" placeholder="${s.twilio_auth_token_set ? '•••••••• stored — leave blank to keep' : 'not set'}"></div>
         <div class="field"><label>From number (E.164)</label><input id="tFrom" value="${esc(s.twilio_from_number||'')}" placeholder="+12025551234"></div>
         <div class="field"><label>SMS Sender name</label><input id="tSend" value="${esc(s.sms_sender||'DiamondNail')}"></div>
         <button class="btn btn-primary" onclick="saveSettings()">Save SMS settings</button>
