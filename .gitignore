@@ -1,1 +1,6 @@
 .claude/
+
+# Local backup copies made before edits — never version these
+*.backup-*
+*.backup
+config/backup/

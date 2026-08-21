@@ -1,0 +1,194 @@
+/* ============================================================
+   Diamond Nail POS — tablet-first (designed for 1024×768 and up,
+   works down to a phone). Every tap target is >= 48px.
+   ============================================================ */
+:root{
+  --ink:#9745bd; --ink-soft:#7a6a63; --line:#e7e0db;
+  --bg:#fffefe; --card:#d8d8d8; --gold:#c9a87d; --green:#1f9d55;
+  --red:#d64545; --blue:#1ba0c8; --amber:#e0a800;
+  --radius:14px; --shadow:0 1px 3px rgba(58,42,36,.10);
+  --topbar-h:64px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  font:500 16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Manrope,sans-serif;
+  background:var(--bg); color:var(--ink); overscroll-behavior:none;
+}
+body.is-fullbleed{overflow:hidden;}
+button,input,select,textarea{font:inherit;color:inherit;}
+a{color:inherit;}
+
+/* ── Top bar ─────────────────────────────────────────────── */
+.topbar{
+  height:var(--topbar-h); background:var(--ink); color:#fff;
+  display:flex; align-items:center; gap:16px; padding:0 16px;
+  position:sticky; top:0; z-index:50;
+}
+.brand{font-size:18px;font-weight:800;white-space:nowrap;}
+.topnav{display:flex; gap:6px; flex:1; overflow-x:auto; scrollbar-width:none;}
+.topnav::-webkit-scrollbar{display:none;}
+.topnav a{
+  display:flex; align-items:center; gap:8px; min-height:44px; padding:0 16px;
+  border-radius:10px; text-decoration:none; color:rgba(255,255,255,.72);
+  font-weight:600; white-space:nowrap;
+}
+.topnav a.active,.topnav a:hover{background:rgba(255,255,255,.14); color:#fff;}
+.topnav .ico{font-size:18px;}
+.topright{display:flex;align-items:center;gap:10px;font-size:13px;color:rgba(255,255,255,.75);}
+.topright .who{font-weight:700;color:#fff;}
+
+/* ── Page shells ─────────────────────────────────────────── */
+.page{padding:20px; max-width:1400px; margin:0 auto;}
+.screen{height:calc(100vh - var(--topbar-h)); display:flex; gap:14px; padding:14px;}
+
+.card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; margin-bottom:16px;}
+.card h2{font-size:18px;font-weight:800;margin-bottom:4px;}
+.card .sub{font-size:13px;color:var(--ink-soft);margin-bottom:14px;}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  min-height:48px; padding:0 20px; border:none; border-radius:12px;
+  background:var(--ink); color:#fff; font-weight:700; cursor:pointer;
+  text-decoration:none; user-select:none;
+}
+.btn:active{transform:translateY(1px);}
+.btn-sm{min-height:38px;padding:0 14px;font-size:13px;border-radius:9px;}
+.btn-lg{min-height:64px;font-size:19px;}
+.btn-green{background:var(--green);} .btn-red{background:var(--red);}
+.btn-blue{background:var(--blue);}   .btn-amber{background:var(--amber);color:#3a2a24;}
+.btn-gold{background:var(--gold);}
+.btn-light{background:#efe9e5;color:var(--ink);}
+.btn-ghost{background:rgba(255,255,255,.14);min-height:38px;padding:0 12px;font-size:13px;}
+.btn[disabled]{opacity:.45;pointer-events:none;}
+
+.field{display:block;margin-bottom:12px;}
+.field span{display:block;font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
+input[type=text],input[type=number],input[type=search],input[type=date],select,textarea{
+  width:100%; min-height:48px; padding:10px 14px; border:1px solid var(--line);
+  border-radius:11px; background:#fff;
+}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-offset:-1px;}
+
+.alert{padding:14px 16px;border-radius:11px;margin-bottom:14px;font-weight:600;}
+.alert-err{background:#fdecec;color:#8f2020;border:1px solid #f5c2c2;}
+.alert-ok{background:#e8f6ee;color:#14663a;border:1px solid #bfe3cf;}
+
+/* ── Register: catalog side ──────────────────────────────── */
+.catalog{flex:1 1 62%; display:flex; flex-direction:column; min-width:0;
+  background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden;}
+.catalog-head{padding:12px 14px; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:center;}
+.catalog-head input[type=search]{flex:1;}
+.tabs{display:flex; gap:8px; padding:12px 14px; overflow-x:auto; border-bottom:1px solid var(--line); scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{min-height:44px;padding:0 18px;border-radius:22px;border:1px solid var(--line);background:#fff;
+  font-weight:700;white-space:nowrap;cursor:pointer;display:flex;align-items:center;}
+.tab.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+.tiles{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:14px;
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; align-content:start;}
+.tile{
+  min-height:104px; border-radius:13px; border:1px solid var(--line); background:#fff;
+  padding:12px; text-align:left; cursor:pointer; display:flex; flex-direction:column;
+  justify-content:space-between; gap:6px;
+}
+.tile:active{background:#faf6f2;}
+.tile .t-name{font-weight:700;font-size:15px;line-height:1.25;}
+.tile .t-meta{font-size:12px;color:var(--ink-soft);}
+.tile .t-price{font-size:18px;font-weight:800;color:var(--ink);}
+.tile.service{border-left:5px solid var(--gold);}
+.tile.product{border-left:5px solid var(--blue);}
+.tile.out{opacity:.45;}
+.tile.custom{border:2px dashed var(--gold);align-items:center;justify-content:center;text-align:center;}
+
+/* Tiles with a photo: the picture fills the tile, text sits on a scrim so it
+   stays readable whatever the salon uploads. */
+.tile.has-img{position:relative;overflow:hidden;min-height:130px;color:#fff;}
+.tile.has-img .t-img{position:absolute;inset:0;background-size:cover;background-position:center;}
+.tile.has-img::after{content:'';position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(0,0,0,.05) 30%,rgba(0,0,0,.78) 100%);}
+.tile.has-img .t-name,.tile.has-img .t-meta,.tile.has-img .t-price{position:relative;z-index:1;}
+.tile.has-img .t-name{text-shadow:0 1px 3px rgba(0,0,0,.6);}
+.tile.has-img .t-meta{color:rgba(255,255,255,.85);}
+.tile.has-img .t-price{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6);}
+
+/* ── Register: ticket side ───────────────────────────────── */
+.ticket{flex:1 1 38%; max-width:460px; min-width:320px; display:flex; flex-direction:column;
+  background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden;}
+.ticket-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;}
+.ticket-head .who{flex:1;font-weight:800;font-size:15px;}
+.ticket-head .sub{font-size:12px;color:var(--ink-soft);font-weight:600;}
+.lines{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 10px;}
+.line{display:flex; gap:10px; align-items:center; padding:10px 6px; border-bottom:1px solid var(--line);}
+.line .l-main{flex:1;min-width:0;}
+.line .l-name{font-weight:700;font-size:15px;}
+.line .l-sub{font-size:12px;color:var(--ink-soft);}
+.stepper{display:flex;align-items:center;gap:4px;}
+.stepper button{width:44px;height:44px;border-radius:11px;border:1px solid var(--line);
+  background:#fff;font-size:22px;font-weight:800;cursor:pointer;}
+.stepper .qty{min-width:34px;text-align:center;font-weight:800;}
+.line .l-total{width:82px;text-align:right;font-weight:800;}
+.line .l-del{width:44px;height:44px;border:none;background:none;font-size:18px;color:var(--red);cursor:pointer;}
+.empty{padding:48px 20px;text-align:center;color:var(--ink-soft);}
+
+.totals{border-top:1px solid var(--line);padding:12px 16px;background:#fdfbfa;}
+.totals .row{display:flex;justify-content:space-between;padding:5px 0;font-size:15px;color:var(--ink-soft);font-weight:600;}
+.totals .row b{color:var(--ink);}
+.totals .grand{font-size:26px;font-weight:800;color:var(--ink);padding-top:10px;margin-top:6px;border-top:1px dashed var(--line);}
+.totals .grand span{font-size:15px;color:var(--ink-soft);}
+.ticket-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 14px;border-top:1px solid var(--line);}
+.ticket-actions .pay{grid-column:1 / -1;}
+
+/* ── Modal / numeric pad ─────────────────────────────────── */
+.modal{position:fixed;inset:0;background:rgba(35,25,20,.55);display:none;
+  align-items:center;justify-content:center;padding:16px;z-index:100;}
+.modal.open{display:flex;}
+.modal-box{background:#fff;border-radius:18px;width:100%;max-width:620px;max-height:92vh;
+  overflow-y:auto;padding:20px;box-shadow:0 18px 48px rgba(0,0,0,.28);}
+.modal-box h3{font-size:20px;font-weight:800;margin-bottom:14px;}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0;}
+.pad button{min-height:60px;border-radius:13px;border:1px solid var(--line);background:#fff;
+  font-size:22px;font-weight:800;cursor:pointer;}
+.pad button:active{background:#f2ece8;}
+.amount-display{font-size:38px;font-weight:800;text-align:right;padding:14px 16px;
+  background:#fbf8f6;border-radius:13px;border:1px solid var(--line);}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;}
+.chip{min-height:48px;padding:0 18px;border-radius:12px;border:1px solid var(--line);
+  background:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;}
+.chip.active{background:var(--gold);border-color:var(--gold);color:#fff;}
+.modal-actions{display:flex;gap:10px;margin-top:16px;}
+.modal-actions .btn{flex:1;}
+
+/* ── Tables (sales, products, reports) ───────────────────── */
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff;}
+table{width:100%;border-collapse:collapse;}
+th{background:#faf7f5;padding:14px 12px;text-align:left;font-size:12px;font-weight:800;
+  text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);border-bottom:1px solid var(--line);}
+td{padding:14px 12px;border-bottom:1px solid var(--line);}
+tr:last-child td{border-bottom:none;}
+.num{text-align:right;font-variant-numeric:tabular-nums;}
+.pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:800;}
+.pill-ok{background:#e8f6ee;color:#14663a;} .pill-void{background:#fdecec;color:#8f2020;}
+.pill-low{background:#fff4d6;color:#7a5800;}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px;}
+.stat{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;}
+.stat .v{font-size:30px;font-weight:800;}
+.stat .k{font-size:13px;color:var(--ink-soft);font-weight:700;margin-top:4px;}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:16px;}
+.toolbar .field{margin:0;}
+
+/* ── Narrow tablets / phones: ticket becomes a bottom sheet ─ */
+@media (max-width:900px){
+  .screen{flex-direction:column;height:calc(100vh - var(--topbar-h));}
+  .ticket{max-width:none;min-width:0;flex:1 1 46%;}
+  .catalog{flex:1 1 54%;}
+  .topnav .lbl{display:none;}
+  .topright .who,.topright .clock{display:none;}
+  .tiles{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));}
+}
+@media print{
+  .topbar,.no-print{display:none !important;}
+  body{background:#fff;}
+  .page{padding:0;}
+}

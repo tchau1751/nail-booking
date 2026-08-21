@@ -1,0 +1,17 @@
+# Anything in here was uploaded through a browser, so it must never be
+# executed — only served as a static file. Belt and braces: the upload
+# code already rejects non-images and renames every file itself.
+
+php_flag engine off
+
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+
+# Serve images as images and nothing else.
+<FilesMatch "\.(?i:php|php\d|phtml|phar|pl|py|cgi|asp|aspx|sh|htaccess)$">
+    Require all denied
+</FilesMatch>
+
+Options -Indexes -ExecCGI
+AddType text/plain .php .phtml .phar .pl .py .cgi

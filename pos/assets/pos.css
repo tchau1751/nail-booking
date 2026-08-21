@@ -1,0 +1,354 @@
+/* ============================================================
+   Diamond Nail POS — tablet-first (designed for 1024×768 and up,
+   works down to a phone). Every tap target is >= 48px.
+   ============================================================ */
+:root{
+  --ink:#f8058b; --ink-soft:#130101; --line:#e26f1d;
+  --bg:#0fd6e4; --card:#f2f7f844; --gold:#d16e0c; --green:#521d04;
+  --red:#da0a0a; --blue:#362704; --amber:#4b3a06;
+  --radius:14px; --shadow:0 1px 3px rgba(12, 11, 11, 0.1);
+  --topbar-h:64px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  font:500 16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Manrope,sans-serif;
+  background:var(--bg); color:var(--ink); overscroll-behavior:none;
+}
+body.is-fullbleed{overflow:hidden;}
+button,input,select,textarea{font:inherit;color:inherit;}
+a{color:inherit;}
+
+/* ── Top bar ─────────────────────────────────────────────── */
+.topbar{
+  height:var(--topbar-h); background:var(--ink); color:#fff;
+  display:flex; align-items:center; gap:13px; padding:0 13px;
+  position:sticky; top:0; z-index:50;
+}
+.brand{font-size:18px;font-weight:800;white-space:nowrap;}
+.topnav{display:flex; gap:6px; flex:1; overflow-x:auto; scrollbar-width:none;}
+.topnav::-webkit-scrollbar{display:none;}
+.topnav a{
+  display:flex; align-items:center; gap:8px; min-height:44px; padding:0 16px;
+  border-radius:10px; text-decoration:none; color:rgba(255,255,255,.72);
+  font-weight:600; white-space:nowrap;
+}
+.topnav a.active,.topnav a:hover{background:#fffff; color:#fff;}
+.topnav .ico{font-size:18px;}
+.topright{display:flex;align-items:center;gap:12px;font-size:14px;color:rgba(255,255,255,.75);}
+.topright .who{font-weight:700;color:#fff;}
+
+/* ── Page shells ─────────────────────────────────────────── */
+.page{padding:20px; max-width:1400px; margin:0 auto;}
+/* dvh, not vh: on a tablet the browser's own bars are inside 100vh, so the
+   last thing in the ticket — the Charge button — ends up below the screen
+   and checkout becomes unreachable. The vh line is the fallback. */
+.screen{
+  height:calc(100vh - var(--topbar-h));
+  height:calc(100dvh - var(--topbar-h));
+  display:flex; gap:16px; padding:16px;
+}
+
+.card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; margin-bottom:16px;}
+.card h2{font-size:18px;font-weight:800;margin-bottom:4px;}
+.card .sub{font-size:13px;color:var(--ink-soft);margin-bottom:14px;}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  min-height:48px; padding:0 20px; border:none; border-radius:12px;
+  background:var(--ink); color:#fff; font-weight:700; cursor:pointer;
+  text-decoration:none; user-select:none;
+}
+.btn:active{transform:translateY(1px);}
+.btn-sm{min-height:38px;padding:0 14px;font-size:13px;border-radius:9px;}
+.btn-lg{min-height:64px;font-size:19px;}
+.btn-green{background:var(--green);} .btn-red{background:var(--red);}
+.btn-blue{background:var(--blue);}   .btn-amber{background:var(--amber);color:#3a2a24;}
+.btn-gold{background:var(--gold);}
+.btn-light{background:#efe9e5;color:var(--ink);}
+.btn-ghost{background:rgba(255,255,255,.14);min-height:38px;padding:0 12px;font-size:13px;}
+.btn[disabled]{opacity:.45;pointer-events:none;}
+/* display:inline-flex above outranks the browser's own [hidden]{display:none},
+   so a button hidden from JS (btnFindClient once a client is attached) would
+   otherwise stay on screen. */
+.btn[hidden]{display:none;}
+
+.field{display:block;margin-bottom:12px;}
+.field span{display:block;font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
+input[type=text],input[type=number],input[type=search],input[type=date],select,textarea{
+  width:100%; min-height:48px; padding:10px 14px; border:1px solid var(--line);
+  border-radius:11px; background:#fff;
+}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-offset:-1px;}
+
+.alert{padding:14px 16px;border-radius:11px;margin-bottom:14px;font-weight:600;}
+.alert-err{background:#fdecec;color:#8f2020;border:1px solid #f5c2c2;}
+.alert-ok{background:#e8f6ee;color:#14663a;border:1px solid #bfe3cf;}
+
+/* ── Register: catalog side ──────────────────────────────── */
+.catalog{flex:1 1 62%; display:flex; flex-direction:column; min-width:0;
+  background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden;}
+/* Search/scan sits at the foot of the catalog, not the top: on a tablet
+   that is where the cashier's hands already are, and it puts the scanner
+   field right beside the Charge button. Ordered with flex rather than moved
+   in the markup, so every id pos.js binds to stays exactly where it was. */
+.catalog-head{order:3; padding:12px 14px; border-top:1px solid var(--line); display:flex; gap:10px; align-items:center;}
+.catalog-head input[type=search]{flex:1;}
+.tabs{order:1; display:flex; gap:8px; padding:12px 14px; overflow-x:auto; border-bottom:1px solid var(--line); scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{min-height:44px;padding:0 18px;border-radius:22px;border:1px solid var(--line);background:#fff;
+  font-weight:700;white-space:nowrap;cursor:pointer;display:flex;align-items:center;}
+.tab.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+.tiles{order:2; flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:14px;
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; align-content:start;}
+.tile{
+  min-height:104px; border-radius:13px; border:1px solid var(--line); background:#fff;
+  padding:12px; text-align:left; cursor:pointer; display:flex; flex-direction:column;
+  justify-content:space-between; gap:6px;
+}
+.tile:active{background:#faf6f2;}
+.tile .t-name{font-weight:700;font-size:15px;line-height:1.25;}
+.tile .t-meta{font-size:12px;color:var(--ink-soft);}
+.tile .t-price{font-size:18px;font-weight:800;color:var(--ink);}
+.tile.service{border-left:5px solid var(--gold);}
+.tile.product{border-left:5px solid var(--blue);}
+.tile.out{opacity:.45;}
+.tile.custom{border:2px dashed var(--gold);align-items:center;justify-content:center;text-align:center;}
+
+/* Tiles with a photo: the picture fills the tile, text sits on a scrim so it
+   stays readable whatever the salon uploads. */
+.tile.has-img{position:relative;overflow:hidden;min-height:110px;color:#fff;}
+.tile.has-img .t-img{position:absolute;inset:0;background-size:cover;background-position:center;}
+.tile.has-img::after{content:'';position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(240, 233, 233, 0.05) 30%,rgba(0,0,0,.78) 100%);}
+.tile.has-img .t-name,.tile.has-img .t-meta,.tile.has-img .t-price{position:relative;z-index:1;}
+.tile.has-img .t-name{text-shadow:0 1px 3px rgba(0,0,0,.6);}
+.tile.has-img .t-meta{color:rgba(255,255,255,.85);}
+.tile.has-img .t-price{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6);}
+
+/* ── Register: ticket side ───────────────────────────────── */
+.ticket{flex:1 1 38%; max-width:380px; min-width:260px; display:flex; flex-direction:column;
+  background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden;}
+/* nowrap on purpose: wrapping would push Edit onto a second row, which is the
+   row this whole change was meant to give back. The guest name and the points
+   text shrink (and ellipsis) instead; the buttons never shrink. */
+.ticket-head{padding:10px 12px;border-bottom:1px solid var(--line);
+  display:flex;flex-wrap:nowrap;gap:8px;align-items:center;}
+.ticket-head .btn{flex:0 0 auto;}
+.ticket-head .who{flex:1 1 auto;min-width:0;font-weight:500;font-size:12px;}
+/* One line each, clipped with an ellipsis — a long guest name must not
+   wrap the header onto a second row. */
+#custName,.ticket-head .sub{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ticket-head .sub{font-size:14px;color:var(--ink-soft);font-weight:500;}
+
+/* An attached client sits on the same row as the guest name rather than on a
+   bar of its own — one row handed back to the ticket lines. */
+#clientBar{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;font-weight:700;}
+/* display:flex above outranks the browser's own [hidden]{display:none}, so
+   without this line the bar would show on every walk-in ticket. Same trap
+   the zero-value totals rows fell into further down. */
+#clientBar[hidden]{display:none;}
+#clientPoints{flex:0 100 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#clientLink{color:var(--blue);white-space:nowrap;}
+/* min-height:0 lets this shrink instead of pushing the totals and the
+   Charge button out of the panel when the ticket gets long. */
+.lines{flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 10px;}
+.line{display:flex; gap:8px; align-items:center; padding:8px 4px; border-bottom:1px solid var(--line);}
+.line .l-main{order:0;flex:1;min-width:0;}
+.line .l-name{font-weight:700;font-size:16px;}
+.line .l-sub{font-size:13px;color:var(--ink-soft);}
+
+/* The − and the + sit at opposite ends of the row: one big unmistakable
+   sign at each edge, instead of two small buttons crowded together in the
+   middle where a busy thumb hits the wrong one. display:contents drops the
+   stepper's own box so its buttons take their place directly in the row,
+   which means pos.js keeps rendering exactly the markup it always has. */
+.stepper{display:contents;}
+.stepper button{width:46px;height:46px;border:none;background:none;
+  font-size:30px;font-weight:800;line-height:1;color:var(--ink);cursor:pointer;}
+.stepper button:active{color:var(--gold);}
+.stepper button[data-act=dec]{order:-1;}
+.stepper button[data-act=inc]{order:3;}
+.stepper .qty{order:1;min-width:26px;text-align:center;font-weight:800;font-size:18px;}
+.line .l-total{order:2;width:66px;text-align:right;font-weight:800;font-size:17px;}
+.line .l-del{order:4;width:38px;height:38px;border:none;background:none;font-size:17px;color:var(--red);cursor:pointer;}
+.empty{padding:48px 20px;text-align:center;color:var(--ink-soft);}
+
+/* Shrinks and scrolls before the Charge button ever does. On a short
+   screen the running totals can give up room; the button that takes the
+   money cannot. */
+.totals{flex:0 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  border-top:1px solid var(--line);padding:10px 12px;background:#fdfbfa;}
+.totals .row{display:flex;justify-content:space-between;padding:6px 0;font-size:12px;color:var(--ink-soft);font-weight:600;}
+/* Rows with nothing in them (no discount / tax / tip / gift card / points on
+   this ticket) are marked [hidden] by pos.js — but display:flex above has
+   higher specificity than the browser's own [hidden]{display:none} rule, so
+   without this line every $0.00 row showed up regardless. This is what was
+   cluttering the right-side panel; the fix only changes what shows when a
+   row's amount is genuinely zero, nothing about how totals are calculated. */
+.totals .row[hidden]{display:none;}
+.totals .row b{color:var(--ink);}
+/* The Total row is formatted exactly like Subtotal and Tip — bold and ruled
+   off, but the same size. No font-size is set anywhere on it on purpose: it
+   inherits .totals .row, so it keeps matching at every screen size without
+   the size having to be repeated in each media query. */
+.totals .grand{align-items:center;font-weight:800;color:var(--ink);
+  padding-top:12px;margin-top:8px;border-top:1px dashed var(--line);}
+.totals .grand span{color:var(--ink);}
+.ticket-actions{flex:0 0 auto;display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  padding:14px 16px;border-top:1px solid var(--line);}
+.ticket-actions .btn{min-height:52px;}
+.ticket-actions .pay{grid-column:1 / -1;}
+
+/* ── Short screens: protect the Charge button ─────────────────
+   Many salon tablets are only 600-800px tall in landscape. Rather
+   than let the ticket overflow, the six small buttons get tighter
+   and the totals lose padding — the money and the Charge button
+   never give up space. */
+@media (max-height:820px){
+  .ticket-actions{grid-template-columns:repeat(3,1fr);gap:6px;padding:10px 12px;}
+  .ticket-actions .btn{min-height:25px;font-size:11px;padding:0 6px;}
+  .ticket-actions .pay{min-height:48px;font-size:18px;}
+  .totals{padding:6px 10px;}
+  .totals .row{padding:3px 0;font-size:14px;}
+  .totals .grand{padding-top:7px;margin-top:4px;}
+  .line{padding:8px 6px;}
+}
+@media (max-height:650px){
+  .ticket-head{padding:8px 12px;}
+  .ticket-actions{gap:5px;padding:8px 10px;}
+  .ticket-actions .btn{min-height:38px;font-size:12px;}
+  .ticket-actions .pay{min-height:52px;font-size:17px;}
+  .totals{padding:6px 12px;}
+  .totals .row{padding:2px 0;font-size:13px;}
+  .totals .grand{padding-top:5px;margin-top:3px;}
+  #clientBar{font-size:12px;}   /* it lives in the header row now, no padding of its own */
+}
+
+
+/* ── Modal / numeric pad ─────────────────────────────────── */
+.modal{position:fixed;inset:0;background:rgba(35,25,20,.55);display:none;
+  align-items:center;justify-content:center;padding:16px;z-index:100;}
+.modal.open{display:flex;}
+.modal-box{background:#fff;border-radius:18px;width:100%;max-width:620px;max-height:92vh;
+  overflow-y:auto;padding:20px;box-shadow:0 18px 48px rgba(0,0,0,.28);}
+.modal-box h3{font-size:20px;font-weight:800;margin-bottom:14px;}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0;}
+.pad button{min-height:60px;border-radius:13px;border:1px solid var(--line);background:#fff;
+  font-size:22px;font-weight:800;cursor:pointer;}
+.pad button:active{background:#f2ece8;}
+.amount-display{font-size:38px;font-weight:800;text-align:right;padding:14px 16px;
+  background:#fbf8f6;border-radius:13px;border:1px solid var(--line);}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;}
+.chip{min-height:48px;padding:0 18px;border-radius:12px;border:1px solid var(--line);
+  background:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;}
+.chip.active{background:var(--gold);border-color:var(--gold);color:#fff;}
+.modal-actions{display:flex;gap:10px;margin-top:16px;}
+.modal-actions .btn{flex:1;}
+
+/* ── Tables (sales, products, reports) ───────────────────── */
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff;}
+table{width:100%;border-collapse:collapse;}
+th{background:#faf7f5;padding:14px 12px;text-align:left;font-size:12px;font-weight:800;
+  text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);border-bottom:1px solid var(--line);}
+td{padding:14px 12px;border-bottom:1px solid var(--line);}
+tr:last-child td{border-bottom:none;}
+.num{text-align:right;font-variant-numeric:tabular-nums;}
+.pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:800;}
+.pill-ok{background:#e8f6ee;color:#14663a;} .pill-void{background:#fdecec;color:#8f2020;}
+.pill-low{background:#fff4d6;color:#7a5800;}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px;}
+.stat{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;}
+.stat .v{font-size:30px;font-weight:800;}
+.stat .k{font-size:13px;color:var(--ink-soft);font-weight:700;margin-top:4px;}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:16px;}
+.toolbar .field{margin:0;}
+
+/* ── Narrow tablets / phones: ticket becomes a bottom sheet ─ */
+@media (max-width:900px){
+  .screen{flex-direction:column;height:calc(100vh - var(--topbar-h));}
+  .ticket{max-width:none;min-width:0;flex:1 1 46%;}
+  .catalog{flex:1 1 54%;}
+  .topnav .lbl{display:none;}
+  .topright .who,.topright .clock{display:none;}
+  .tiles{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));}
+}
+/* ── Compact tier: 10" tablets in landscape ──────────────────
+   The salon's Galaxy Tab A8 reports a 320 density override, so Chrome
+   only gets about 960×540 CSS pixels. At the default sizes the top bar,
+   the panel padding and the 160px tiles eat most of that and the cashier
+   is left working through a keyhole. Nothing below changes the layout or
+   the colours — it is the same screen, tightened, so roughly twice as
+   many services fit and the ticket stops being cramped. */
+@media (max-height:700px){
+  :root{--topbar-h:46px;}
+
+  .topbar{gap:8px;padding:0 10px;}
+  .brand{font-size:15px;}
+  .topnav a{min-height:36px;padding:0 10px;font-size:14px;}
+  .topnav .ico{font-size:15px;}
+  .topright{gap:8px;font-size:12px;}
+
+  .screen{gap:10px;padding:10px;}
+
+  /* Catalog: smaller tiles put about twice as many services on screen. */
+  .catalog-head{padding:8px 10px;gap:8px;}
+  .catalog-head input[type=search]{min-height:38px;padding:8px 12px;}
+  .tabs{padding:8px 10px;gap:6px;}
+  .tab{min-height:34px;padding:0 13px;font-size:13px;}
+  .tiles{padding:10px;gap:8px;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));}
+  .tile{min-height:76px;padding:8px;gap:3px;border-radius:11px;}
+  .tile.has-img{min-height:80px;}
+  .tile .t-name{font-size:13px;}
+  .tile .t-meta{font-size:11px;}
+  .tile .t-price{font-size:15px;}
+
+  /* With a sign at each end of every line, the row needs enough width left
+     over for the service name to stay on one line — "Deluxe Pedicure" broke
+     across two at 330px. The catalog still fits four tiles per row. */
+  .ticket{flex:1 1 42%;min-width:250px;max-width:380px;}
+  .ticket-head{padding:6px 10px;gap:6px;}
+  .ticket-head .who{font-size:15px;}
+  .ticket-head .sub{font-size:13px;}
+  .lines{padding:6px 6px;}
+  /* Text stays big here on purpose — this is the part of the screen the
+     cashier reads back to the guest, so it gets the room the trimmed-down
+     chrome freed up rather than shrinking with everything else. */
+  .line{padding:5px 2px;gap:6px;}
+  .line .l-name{font-size:15px;}
+  .line .l-sub{font-size:12px;}
+  .line .l-total{font-size:16px;width:62px;}
+  .stepper button{width:42px;height:42px;font-size:27px;}
+  .stepper .qty{min-width:24px;font-size:17px;}
+  .line .l-del{width:32px;height:32px;font-size:15px;}
+  .empty{padding:20px 12px;font-size:14px;}
+  .totals .row{font-size:15px;}
+
+  .totals .grand{padding-top:6px;margin-top:4px;}
+  .ticket-actions .pay{min-height:50px;font-size:17px;}
+  .btn-lg{min-height:52px;font-size:17px;}
+
+  /* Checkout is the one flow that must never need scrolling to finish:
+     at these sizes the keypad, the tender chips and the Done button all
+     land inside 540px, so taking money is never a scroll-and-hunt. */
+  .modal{padding:8px;}
+  .modal-box{padding:12px;max-height:97vh;}
+  .modal-box h3{font-size:16px;margin-bottom:8px;}
+  .amount-display{font-size:24px;padding:8px 12px;}
+  .chips{gap:6px;margin:8px 0;}
+  .chip{min-height:34px;padding:0 12px;font-size:13px;}
+  .pad{gap:6px;margin:8px 0;}
+  .pad button{min-height:38px;font-size:18px;}
+  .modal-actions{margin-top:10px;}
+  .modal-actions .btn{min-height:42px;}
+  .field{margin-bottom:8px;}
+  input[type=text],input[type=number],input[type=search],input[type=date],select,textarea{min-height:38px;padding:7px 12px;}
+}
+
+@media print{
+  .topbar,.no-print{display:none !important;}
+  body{background:#fff;}
+  .page{padding:0;}
+}
