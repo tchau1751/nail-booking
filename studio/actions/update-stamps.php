@@ -19,8 +19,12 @@ if (!admin_csrf_verify($input['csrf_token'] ?? null)) {
 $client_id = (int)($input['client_id'] ?? 0);
 $action = trim($input['action'] ?? '');
 
-if (!$client_id || !in_array($action, ['add', 'remove', 'reset'], true)) {
-    json_response(['ok' => false, 'error' => 'Invalid request']);
+if (!$client_id) {
+    json_response(['ok' => false, 'error' => 'Invalid client ID: ' . $client_id]);
+}
+
+if (!in_array($action, ['add', 'remove', 'reset'], true)) {
+    json_response(['ok' => false, 'error' => 'Invalid action: ' . $action]);
 }
 
 $pdo = get_db();
