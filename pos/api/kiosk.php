@@ -7,6 +7,11 @@
 require_once __DIR__ . '/../includes/salon.php';
 require_once __DIR__ . '/../includes/rewards.php';
 if (!isLoggedIn()) jsonOut(['error' => 'This tablet is signed out. Ask a manager to sign in again.'], 401);
+// The wait-time poll is a plain read; anything that writes has to prove it came
+// from the kiosk page this tablet is actually showing.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !posCsrfValid($_POST['_csrf'] ?? null)) {
+    jsonOut(['error' => 'This tablet was signed out — ask a manager to sign in again.'], 419);
+}
 
 /**
  * How long the next walk-in is likely to wait.

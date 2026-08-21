@@ -38,6 +38,25 @@ foreach ($sales as $s) {
     $sum['tips']     += $s['tip_total'];
     $sum['refunded'] += (float)$s['refunded'];
 }
+
+if (($_GET['export'] ?? '') === 'csv') {
+    $csv = [['Sales', $from . ' to ' . $to], [],
+            ['Sale', 'When', 'Guest', 'Phone', 'Technician', 'Payment', 'Subtotal', 'Discount',
+             'Tax', 'Tip', 'Total', 'Refunded', 'Status']];
+    foreach ($sales as $row) {
+        $csv[] = [$row['sale_no'], $row['created_at'], $row['customer_name'], $row['customer_phone'],
+                  $row['tech_name'], $row['methods'], round((float)$row['subtotal'], 2),
+                  round((float)$row['discount_total'], 2), round((float)$row['tax_total'], 2),
+                  round((float)$row['tip_total'], 2), round((float)$row['grand_total'], 2),
+                  round((float)$row['refunded'], 2), $row['status']];
+    }
+    $csv[] = [];
+    $csv[] = ['Tickets', $sum['count']];
+    $csv[] = ['Collected, net of refunds', round($sum['total'], 2)];
+    $csv[] = ['Refunded', round($sum['refunded'], 2)];
+    $csv[] = ['Tips', round($sum['tips'], 2)];
+    posCsvOut('sales-' . $from . '-to-' . $to . '.csv', $csv);
+}
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-err"><?= e($err) ?></div><?php endif; ?>
@@ -49,6 +68,8 @@ foreach ($sales as $s) {
     <input type="search" name="q" value="<?= e($q) ?>" placeholder="Sale no, name or phone"></label>
   <button class="btn" type="submit">Apply</button>
   <a class="btn btn-light" href="<?= BASE_PATH ?>/pos/sales.php">Today</a>
+  <a class="btn btn-light" href="?from=<?= e($from) ?>&to=<?= e($to) ?>&q=<?= urlencode($q) ?>&export=csv">⬇ CSV</a>
+  <button class="btn btn-blue" type="button" onclick="window.print()">🖨 Print / PDF</button>
 </form>
 
 <div class="stats">

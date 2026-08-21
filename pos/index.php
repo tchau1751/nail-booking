@@ -308,6 +308,7 @@ $tipPresets = array_filter(array_map('trim', explode(',', posSettings()['tip_pre
   window.POS = {
     api: '<?= BASE_PATH ?>/pos/api/cart.php',
     base: '<?= BASE_PATH ?>',
+    csrf: '<?= e(posCsrfToken()) ?>',
     currency: '<?= e(posSettings()['currency_symbol']) ?>',
     tipPresets: <?= json_encode(array_map('floatval', array_values($tipPresets))) ?>,
     minRedeem: <?= (int)(posSettings()['points_min_redeem'] ?? 100) ?>,

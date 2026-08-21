@@ -120,6 +120,55 @@ $expenses   = fetchAll('SELECT category, SUM(amount) v FROM pos_expenses
                         WHERE expense_date BETWEEN ? AND ? GROUP BY category ORDER BY v DESC', $rng);
 $expenseTot = array_sum(array_column($expenses, 'v'));
 $netProfit  = round($netRevenue - $cogs - $commission - $expenseTot, 2);
+
+// One file, the same sections the screen shows, blank rows between them —
+// which is what an accountant does with it anyway.
+if (($_GET['export'] ?? '') === 'csv') {
+    $csv = [['Report', $from . ' to ' . $to], []];
+    $csv[] = ['Totals'];
+    $csv[] = ['Tickets', (int)($head['c'] ?? 0)];
+    $csv[] = ['Gross collected', round((float)($head['tot'] ?? 0), 2)];
+    $csv[] = ['Discounts', round((float)($head['disc'] ?? 0), 2)];
+    $csv[] = ['Tax collected', round((float)($head['tax'] ?? 0), 2)];
+    $csv[] = ['Tips', round((float)($head['tip'] ?? 0), 2)];
+    $csv[] = ['Refunded', round($refundTot, 2)];
+    $csv[] = ['Cash expected in drawer', round($expectedCash, 2)];
+    $csv[] = [];
+
+    $csv[] = ['By payment method', 'Count', 'Amount'];
+    foreach ($byMethod as $m) $csv[] = [$m['method'], (int)$m['c'], round((float)$m['amt'], 2)];
+    $csv[] = [];
+
+    $csv[] = ['By technician', 'Tickets', 'Revenue'];
+    foreach ($byTech as $t) $csv[] = [$t['tech'], (int)$t['tickets'], round((float)$t['revenue'], 2)];
+    $csv[] = [];
+
+    $csv[] = ['Tips by technician', 'Tickets', 'Tips', 'Of which cash'];
+    foreach ($tipsByTech as $t) {
+        $csv[] = [$t['tech'], (int)$t['tickets'], round((float)$t['tips'], 2),
+                  round((float)$t['tips_cash'], 2)];
+    }
+    $csv[] = [];
+
+    $csv[] = ['By item', 'Type', 'Qty', 'Revenue'];
+    foreach ($byItem as $i) {
+        $csv[] = [$i['name'], $i['item_type'], (int)$i['qty'], round((float)$i['revenue'], 2)];
+    }
+    $csv[] = [];
+
+    $csv[] = ['By day', 'Tickets', 'Total'];
+    foreach ($byDay as $d) $csv[] = [$d['d'], (int)$d['c'], round((float)$d['tot'], 2)];
+    $csv[] = [];
+
+    $csv[] = ['Profit and loss'];
+    $csv[] = ['Net revenue', round($netRevenue, 2)];
+    $csv[] = ['Cost of retail goods sold', -round($cogs, 2)];
+    $csv[] = ['Technician commission', -round($commission, 2)];
+    foreach ($expenses as $x) $csv[] = [$x['category'], -round((float)$x['v'], 2)];
+    $csv[] = [$netProfit >= 0 ? 'Net profit' : 'Net loss', round($netProfit, 2)];
+
+    posCsvOut('report-' . $from . '-to-' . $to . '.csv', $csv);
+}
 ?>
 <form class="toolbar no-print" method="get">
   <label class="field"><span>From</span><input type="date" name="from" value="<?= e($from) ?>"></label>
@@ -128,7 +177,8 @@ $netProfit  = round($netRevenue - $cogs - $commission - $expenseTot, 2);
   <a class="btn btn-light" href="?from=<?= date('Y-m-d') ?>&to=<?= date('Y-m-d') ?>">Today</a>
   <a class="btn btn-light" href="?from=<?= date('Y-m-d', strtotime('monday this week')) ?>&to=<?= date('Y-m-d') ?>">This week</a>
   <a class="btn btn-light" href="?from=<?= date('Y-m-01') ?>&to=<?= date('Y-m-d') ?>">This month</a>
-  <button class="btn btn-blue" type="button" onclick="window.print()">🖨 Print Z-report</button>
+  <a class="btn btn-light" href="?from=<?= e($from) ?>&to=<?= e($to) ?>&export=csv">⬇ CSV</a>
+  <button class="btn btn-blue" type="button" onclick="window.print()">🖨 Print / PDF</button>
 </form>
 
 <div class="stats">

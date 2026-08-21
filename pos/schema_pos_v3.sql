@@ -34,3 +34,13 @@ CREATE TABLE IF NOT EXISTS pos_refund_items (
   INDEX idx_refund (refund_id),
   INDEX idx_item (sale_item_id)
 ) ENGINE=InnoDB;
+
+-- Ticket and refund numbers. Reading the last number and adding one is a race
+-- two tills can lose: both read the same number, both try to write it, and the
+-- unique index turns the second sale into an error at the counter. One row per
+-- day per series, bumped atomically, so the number is handed out rather than
+-- guessed.
+CREATE TABLE IF NOT EXISTS pos_counters (
+  name VARCHAR(40) NOT NULL PRIMARY KEY,
+  seq  INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB;

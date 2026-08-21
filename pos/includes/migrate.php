@@ -130,6 +130,24 @@ function migratePos(): array {
         }
     }
 
+    // Seed the number counters from whatever is already on the books, or the
+    // first sale after this upgrade would try to reuse today's 0001.
+    if (tableExists('pos_counters') && tableExists('pos_sales')) {
+        db()->exec("INSERT INTO pos_counters (name, seq)
+                    SELECT CONCAT('sale:', SUBSTRING_INDEX(sale_no, '-', 1)),
+                           MAX(CAST(SUBSTRING_INDEX(sale_no, '-', -1) AS UNSIGNED))
+                      FROM pos_sales WHERE sale_no LIKE '%-%'
+                     GROUP BY 1
+                    ON DUPLICATE KEY UPDATE seq = GREATEST(seq, VALUES(seq))");
+        db()->exec("INSERT INTO pos_counters (name, seq)
+                    SELECT CONCAT('refund:', SUBSTRING_INDEX(refund_no, '-', 1)),
+                           MAX(CAST(SUBSTRING_INDEX(refund_no, '-', -1) AS UNSIGNED))
+                      FROM pos_refunds WHERE refund_no LIKE '%-%'
+                     GROUP BY 1
+                    ON DUPLICATE KEY UPDATE seq = GREATEST(seq, VALUES(seq))");
+        $log[] = 'seeded pos_counters from existing numbers';
+    }
+
     // Index the client lookups the queue and directory lean on.
     if (tableExists('pos_clients') && !fetchOne('SELECT 1 x FROM information_schema.STATISTICS
             WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND INDEX_NAME=?', [dbName(), 'pos_clients', 'idx_lastvisit'])) {

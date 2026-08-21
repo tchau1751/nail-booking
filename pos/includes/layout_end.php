@@ -1,3 +1,13 @@
+<?php
+// Stamp the CSRF token into every POST form on the page. Doing it here rather
+// than by hand means a form added later is covered the day it is written,
+// and a form that is somehow missed still fails closed at layout_start.
+$posPage  = ob_get_clean();
+$posField = '<input type="hidden" name="_csrf" value="' . e(posCsrfToken()) . '">';
+$posPage  = preg_replace('~(<form[^>]*\bmethod\s*=\s*["\']?post\b[^>]*>)~i',
+                         '$1' . $posField, $posPage);
+echo $posPage;
+?>
 </main>
 <script>
   (function tick(){

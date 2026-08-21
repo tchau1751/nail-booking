@@ -376,7 +376,8 @@ body{
 <script>
 (function () {
   'use strict';
-  var API = '<?= BASE_PATH ?>/pos/api/kiosk.php';
+  var API  = '<?= BASE_PATH ?>/pos/api/kiosk.php';
+  var CSRF = '<?= e(posCsrfToken()) ?>';
   var digits = '', client = null, chosenService = '', chosenTech = '', partySize = 1;
   var idleTimer = null;
 
@@ -385,6 +386,7 @@ body{
   function post(action, data) {
     var b = new FormData();
     b.append('action', action);
+    b.append('_csrf', CSRF);
     Object.keys(data || {}).forEach(function (k) { if (data[k] !== null && data[k] !== '') b.append(k, data[k]); });
     return fetch(API, { method: 'POST', body: b, credentials: 'same-origin' })
       .then(function (r) { return r.json().then(function (j) { return r.ok ? j : Promise.reject(j); }); });

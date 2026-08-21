@@ -7,6 +7,11 @@ require_once __DIR__ . '/../includes/pos.php';
 require_once __DIR__ . '/../includes/salon.php';
 require_once __DIR__ . '/../includes/rewards.php';
 if (!isLoggedIn()) jsonOut(['error' => 'Not signed in.'], 401);
+// Same second lock the page forms get: SameSite=Lax is a browser default, not
+// a guarantee this endpoint is allowed to rely on.
+if (!posCsrfValid($_POST['_csrf'] ?? $_GET['_csrf'] ?? null)) {
+    jsonOut(['error' => 'This till was signed out — sign in again.'], 419);
+}
 
 $action = $_POST['action'] ?? $_GET['action'] ?? 'state';
 

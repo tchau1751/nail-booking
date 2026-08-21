@@ -17,6 +17,7 @@
   function post(action, data) {
     var body = new FormData();
     body.append('action', action);
+    body.append('_csrf', POS.csrf);
     Object.keys(data || {}).forEach(function (k) { body.append(k, data[k]); });
     return fetch(api, { method: 'POST', body: body, credentials: 'same-origin' })
       .then(function (r) { return r.json().then(function (j) { return r.ok ? j : Promise.reject(j); }); })
@@ -39,6 +40,7 @@
       if (!pin) return Promise.reject(err);
       var body = new FormData();
       body.append('pin', pin);
+      body.append('_csrf', POS.csrf);
       return fetch(POS.base + '/pos/api/approve.php', { method: 'POST', body: body, credentials: 'same-origin' })
         .then(function (r) { return r.json().then(function (j) { return r.ok ? j : Promise.reject(j); }); })
         .then(function (j) { toast('Approved by ' + j.by); return run(); })

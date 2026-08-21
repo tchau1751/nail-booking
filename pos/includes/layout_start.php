@@ -11,6 +11,26 @@ if (!posInstalled() && basename($_SERVER['SCRIPT_NAME']) !== 'install.php') {
     exit;
 }
 
+// Every POST to a till page passes through here before the page's own handler
+// runs, so no screen can forget the check. The matching hidden field is added
+// to each form on the way out in layout_end — one place to enforce it, one
+// place to supply it, and nothing to remember when a new page is written.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !posCsrfValid($_POST['_csrf'] ?? null)) {
+    http_response_code(419);
+    echo '<!doctype html><meta charset="utf-8">'
+       . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+       . '<title>Session expired</title>'
+       . '<div style="font:16px/1.6 system-ui;max-width:34em;margin:12vh auto;padding:0 24px">'
+       . '<h1 style="font-size:22px">That form went stale</h1>'
+       . '<p>The till was signed out or left sitting too long, so the form was not accepted '
+       . 'and nothing was changed. Open the page again and redo it.</p>'
+       . '<p><a href="' . BASE_PATH . '/pos/">Back to the register</a></p></div>';
+    exit;
+}
+
+// The whole page is buffered so layout_end can drop the token into every form.
+ob_start();
+
 $pageTitle = $pageTitle ?? 'POS';
 $activeNav = $activeNav ?? '';
 $fullBleed = $fullBleed ?? false;   // register screen fills the viewport, no page scroll

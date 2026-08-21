@@ -16,6 +16,27 @@ function requireTillLogin(): void {
     }
 }
 
+/**
+ * Cross-site request forgery token for the till.
+ *
+ * SameSite=Lax on the session cookie already stops a plain cross-site POST,
+ * but that is one browser default standing between a stranger's web page and
+ * voiding a sale or rewriting the pay rates. This is the second lock.
+ */
+function posCsrfToken(): string {
+    startSecureSession();
+    if (empty($_SESSION['pos_csrf'])) {
+        $_SESSION['pos_csrf'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['pos_csrf'];
+}
+
+function posCsrfValid(?string $sent): bool {
+    startSecureSession();
+    return !empty($_SESSION['pos_csrf']) && is_string($sent)
+        && hash_equals($_SESSION['pos_csrf'], $sent);
+}
+
 function posSettings(): array {
     static $s = null;
     if ($s === null) {
@@ -235,11 +256,25 @@ function cartTotals(): array {
     ];
 }
 
+/**
+ * Hand out the next number in a daily series, atomically.
+ *
+ * Reading the highest number and adding one is a race two tills can lose: both
+ * read 0007, both try to write 0008, and the unique index turns the second
+ * guest's sale into an error while they are standing there. One statement does
+ * the read, the increment and the reservation together, and the row stays
+ * locked until the surrounding transaction commits — so a checkout that rolls
+ * back gives its number back rather than leaving a hole.
+ */
+function nextSeq(string $series): int {
+    query('INSERT INTO pos_counters (name, seq) VALUES (?, LAST_INSERT_ID(1))
+           ON DUPLICATE KEY UPDATE seq = LAST_INSERT_ID(seq + 1)', [$series]);
+    return (int)db()->lastInsertId();
+}
+
 function nextSaleNo(): string {
     $prefix = date('ymd');
-    $row = fetchOne("SELECT sale_no FROM pos_sales WHERE sale_no LIKE ? ORDER BY id DESC LIMIT 1", [$prefix . '-%']);
-    $seq = $row ? ((int)substr($row['sale_no'], -4)) + 1 : 1;
-    return $prefix . '-' . str_pad((string)$seq, 4, '0', STR_PAD_LEFT);
+    return $prefix . '-' . str_pad((string)nextSeq('sale:' . $prefix), 4, '0', STR_PAD_LEFT);
 }
 
 /**
@@ -423,10 +458,7 @@ function refundableLines(int $saleId): array {
 
 function nextRefundNo(): string {
     $prefix = 'R' . date('ymd');
-    $row = fetchOne("SELECT refund_no FROM pos_refunds WHERE refund_no LIKE ? ORDER BY id DESC LIMIT 1",
-                    [$prefix . '-%']);
-    $seq = $row ? ((int)substr($row['refund_no'], -4)) + 1 : 1;
-    return $prefix . '-' . str_pad((string)$seq, 4, '0', STR_PAD_LEFT);
+    return $prefix . '-' . str_pad((string)nextSeq('refund:' . $prefix), 4, '0', STR_PAD_LEFT);
 }
 
 /**
@@ -611,6 +643,31 @@ function voidSale(int $saleId): void {
         $pdo->rollBack();
         throw $e;
     }
+}
+
+/**
+ * Send a table to the browser as a CSV download and stop.
+ *
+ * Called after layout_start has already run, so the page's own buffer is
+ * dropped first — that way the role gate and the sign-in check still happen
+ * before a single row goes out. Amounts are written as bare numbers, not
+ * money(), so the spreadsheet can add them up.
+ */
+function posCsvOut(string $filename, array $rows): void
+{
+    // The name is built from user-supplied dates; anything that could break out
+    // of the header goes first.
+    $filename = preg_replace('/[^A-Za-z0-9._-]/', '-', $filename);
+    if ($filename === '' || $filename === null) $filename = 'export.csv';
+
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, chr(0xEF) . chr(0xBB) . chr(0xBF));   // byte order mark, or Excel mangles accents
+    foreach ($rows as $row) fputcsv($out, $row);
+    fclose($out);
+    exit;
 }
 
 function jsonOut($data, int $code = 200): void {

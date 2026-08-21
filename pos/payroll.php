@@ -107,6 +107,30 @@ foreach ($rows as &$r) {
     $tot['hours']     += $r['hours'];
 }
 unset($r);
+
+// Numbers only, no currency symbol — a spreadsheet cannot add up "$74.50".
+if (($_GET['export'] ?? '') === 'csv') {
+    $head = ['Technician', 'Basis', 'Rate %', 'Tickets', 'Turns', 'Service revenue', 'Retail',
+             'Commission'];
+    if ($supplyOn) { $head[] = 'Supply fee %'; $head[] = 'Supply fee'; }
+    array_push($head, 'Hours', 'Wage', 'Card tips', 'Cash tips', 'Payout');
+    $csv = [['Payroll', $from . ' to ' . $to], [], $head];
+    foreach ($rows as $r) {
+        $line = [$r['name'], $r['pay_type'], (float)$r['commission_rate'], (int)$r['tickets'],
+                 round((float)$r['turns'], 2), round((float)$r['service_rev'], 2),
+                 round((float)$r['product_rev'], 2), $r['commission']];
+        if ($supplyOn) { $line[] = (float)$r['supply_fee_rate']; $line[] = $r['supply']; }
+        array_push($line, round((float)$r['hours'], 2), $r['wage'],
+                   round((float)$r['tips_card'], 2), round((float)$r['tips_cash'], 2), $r['payout']);
+        $csv[] = $line;
+    }
+    $total = ['Total', '', '', '', '', round($tot['service'], 2), round($tot['product'], 2), ''];
+    if ($supplyOn) { $total[] = ''; $total[] = round($tot['supply'], 2); }
+    array_push($total, round($tot['hours'], 2), '', round($tot['tips_card'], 2),
+               round($tot['tips_cash'], 2), round($tot['pay'], 2));
+    $csv[] = $total;
+    posCsvOut('payroll-' . $from . '-to-' . $to . '.csv', $csv);
+}
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-err"><?= e($err) ?></div><?php endif; ?>
@@ -118,7 +142,8 @@ unset($r);
   <a class="btn btn-light" href="?from=<?= date('Y-m-d') ?>&to=<?= date('Y-m-d') ?>">Today</a>
   <a class="btn btn-light" href="?from=<?= date('Y-m-d', strtotime('monday this week')) ?>&to=<?= date('Y-m-d') ?>">This week</a>
   <a class="btn btn-light" href="?from=<?= date('Y-m-01') ?>&to=<?= date('Y-m-t') ?>">This month</a>
-  <button class="btn btn-blue" type="button" onclick="window.print()">🖨 Print</button>
+  <a class="btn btn-light" href="?from=<?= e($from) ?>&to=<?= e($to) ?>&export=csv">⬇ CSV</a>
+  <button class="btn btn-blue" type="button" onclick="window.print()">🖨 Print / PDF</button>
 </form>
 
 <div class="stats">
