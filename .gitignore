@@ -4,3 +4,4 @@
 *.backup-*
 *.backup
 config/backup/
+config/config.local.php

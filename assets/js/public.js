@@ -6,6 +6,19 @@
 
 const BP = window.BASE_PATH || '';
 
+// Price and appointment length are hidden by default: many salons quote in
+// person because the final price depends on length, art and repairs.
+// Both are switched on or off in POS -> Settings.
+const SHOW_PRICE = !!window.SHOW_PRICE;
+const SHOW_DUR   = !!window.SHOW_DURATION;
+
+function metaLine(s) {
+  const bits = [];
+  if (SHOW_DUR)   bits.push(`⏱ ${s.duration_minutes} min`);
+  if (SHOW_PRICE) bits.push(`$${parseFloat(s.price).toFixed(0)}`);
+  return bits.length ? `<div class="svc-choice-meta">${bits.join(' &nbsp;·&nbsp; ')}</div>` : '';
+}
+
 // ── Service images — swap URLs here anytime ─────────────────
 const SERVICE_IMAGES = {
   'classic manicure': 'https://images.unsplash.com/photo-1604902396830-aca29e19b067?q=80&w=800&auto=format&fit=crop',
@@ -70,14 +83,14 @@ async function initServices() {
         ? '<p style="color:rgba(58,42,36,.5)">Services coming soon.</p>'
         : state.services.map(s => `
           <div class="svc-card">
-            <div class="svc-img"><img src="${svcImg(s.name)}" alt="${esc(s.name)}" loading="lazy"></div>
+            <div class="svc-img"><img src="${s.image_url || svcImg(s.name)}" alt="${esc(s.name)}" loading="lazy"></div>
             <div class="svc-body">
               <h3>${esc(s.name)}</h3>
               <p>${esc(s.description||'')}</p>
-              <div class="svc-meta">
-                <span class="svc-dur">⏱ ${s.duration_minutes} min</span>
-                <span class="svc-price">$${parseFloat(s.price).toFixed(0)}</span>
-              </div>
+              ${(SHOW_DUR || SHOW_PRICE) ? `<div class="svc-meta">
+                ${SHOW_DUR   ? `<span class="svc-dur">⏱ ${s.duration_minutes} min</span>` : ''}
+                ${SHOW_PRICE ? `<span class="svc-price">$${parseFloat(s.price).toFixed(0)}</span>` : ''}
+              </div>` : ''}
               <button class="svc-btn" onclick="selectServiceAndScroll(${s.id})">
                 Select &amp; schedule <span>→</span>
               </button>
@@ -91,7 +104,7 @@ async function initServices() {
       choices.innerHTML = state.services.map(s => `
         <button class="svc-choice" data-id="${s.id}" onclick="selectService(${s.id})">
           <div class="svc-choice-name">${esc(s.name)}</div>
-          <div class="svc-choice-meta">⏱ ${s.duration_minutes} min &nbsp;·&nbsp; $${parseFloat(s.price).toFixed(0)}</div>
+          ${metaLine(s)}
         </button>`).join('');
     }
   } catch(e) {
@@ -110,7 +123,12 @@ function selectService(id) {
   if (!state.service) return;
   qsa('.svc-choice').forEach(b => b.classList.toggle('selected', parseInt(b.dataset.id) === id));
   const lbl = qs('selSvcLabel');
-  if (lbl) lbl.innerHTML = `Service: <strong>${esc(state.service.name)}</strong> &nbsp;·&nbsp; $${parseFloat(state.service.price).toFixed(0)} &nbsp;·&nbsp; ${state.service.duration_minutes} min`;
+  if (lbl) {
+    const bits = [`<strong>${esc(state.service.name)}</strong>`];
+    if (SHOW_PRICE) bits.push(`$${parseFloat(state.service.price).toFixed(0)}`);
+    if (SHOW_DUR)   bits.push(`${state.service.duration_minutes} min`);
+    lbl.innerHTML = 'Service: ' + bits.join(' &nbsp;·&nbsp; ');
+  }
   state.slot = null; state.date = null;
   renderDateStrip();
   loadTechnicians();
@@ -204,7 +222,7 @@ function renderSummary() {
     <div class="sum-row"><span>Technician</span><span>${esc(tech)}</span></div>
     <div class="sum-row"><span>Date</span><span>${state.date.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</span></div>
     <div class="sum-row"><span>Time</span><span>${state.slot.label}</span></div>
-    <div class="sum-row"><span>Duration</span><span>${state.service.duration_minutes} min</span></div>
+    ${SHOW_DUR ? `<div class="sum-row"><span>Duration</span><span>${state.service.duration_minutes} min</span></div>` : ''}
     <div class="sum-row" style="margin-top:8px;padding-top:10px;border-top:2px solid var(--taupe)">
       <span style="font-weight:700">Total</span>
       <span class="sum-price">$${parseFloat(state.service.price).toFixed(0)}</span>

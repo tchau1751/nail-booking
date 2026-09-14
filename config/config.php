@@ -5,16 +5,21 @@
 //  Access via: http://localhost/diamond-nail-spa/
 // ============================================================
 
+// ── Machine-local overrides ───────────────────────────────────
+// config.local.php is git-ignored. Anything it defines wins over the
+// defaults below, so a test copy or a server can differ without an edit here.
+if (is_file(__DIR__ . '/config.local.php')) require __DIR__ . '/config.local.php';
+
 // ── Database (XAMPP defaults) ─────────────────────────────────
-define('DB_HOST',    'localhost');
-define('DB_NAME',    'nail_booking');
-define('DB_USER',    'root');
-define('DB_PASS',    '');          // XAMPP default = no password
-define('DB_CHARSET', 'utf8mb4');
+defined('DB_HOST')    || define('DB_HOST',    'localhost');
+defined('DB_NAME')    || define('DB_NAME',    'nail_booking');
+defined('DB_USER')    || define('DB_USER',    'root');
+defined('DB_PASS')    || define('DB_PASS',    '');          // XAMPP default = no password
+defined('DB_CHARSET') || define('DB_CHARSET', 'utf8mb4');
 
 // ── App base path ─────────────────────────────────────────────
 // Change 'nail-booking' if you rename the folder in htdocs
-define('SUBFOLDER',  'nail-booking');
+defined('SUBFOLDER')  || define('SUBFOLDER',  'nail-booking');
 define('APP_URL',    'http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/' . SUBFOLDER);
 define('BASE_PATH',  '/' . SUBFOLDER);   // used in HTML href/src
 

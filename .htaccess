@@ -1,9 +1,9 @@
 # ============================================================
 #  Diamond Nail & Spa — Apache / XAMPP .htaccess
 #  Place the entire diamond-nail-spa/ folder inside:
-#    Windows: D:\xampp\htdocs\diamond-nail-spa\
-#    macOS:   /Applications/XAMPP/htdocs/diamond-nail-spa/
-#    Linux:   /opt/lampp/htdocs/diamond-nail-spa/
+#    Windows: D:\xampp\htdocs\nail-booking\
+#    macOS:   /Applications/XAMPP/htdocs/nail-booking/
+#    Linux:   /opt/lampp/htdocs/nail-booking/
 # ============================================================
 
 Options -Indexes
@@ -12,7 +12,7 @@ DirectoryIndex index.php
 # ── Enable mod_rewrite ───────────────────────────────────────
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /diamond-nail-spa/
+    RewriteBase /nail-booking/
 
     # Block direct access to sensitive folders
     RewriteRule ^(includes|config|cron)(/|$) - [F,L]

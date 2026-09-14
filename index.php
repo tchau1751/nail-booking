@@ -208,8 +208,12 @@ function esc($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 <!-- Inject base path for JS fetch calls -->
 <script>
   window.BASE_PATH = '<?= BASE_PATH ?>';
+  // Salons often prefer to quote in person; these come from POS -> Settings.
+<?php $__pub = @fetchOne('SELECT public_show_prices, public_show_duration FROM pos_settings WHERE id=1') ?: []; ?>
+  window.SHOW_PRICE    = <?= (int)($__pub['public_show_prices'] ?? 0) ?>;
+  window.SHOW_DURATION = <?= (int)($__pub['public_show_duration'] ?? 0) ?>;
   window.APP_URL   = '<?= APP_URL ?>';
 </script>
-<script src="<?= BASE_PATH ?>/assets/js/public.js"></script>
+<script src="<?= BASE_PATH ?>/assets/js/public.js?v=<?= @filemtime(__DIR__ . '/assets/js/public.js') ?>"></script>
 </body>
 </html>

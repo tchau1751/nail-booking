@@ -29,6 +29,10 @@ function runSqlFile(string $path, array &$log): void {
     if ($sql === false) throw new RuntimeException(basename($path) . ' is missing.');
     $sql = preg_replace('/^\s*--.*$/m', '', $sql);
     foreach (array_filter(array_map('trim', explode(';', $sql)), 'strlen') as $stmt) {
+        // The files say USE nail_booking for anyone piping them into the mysql
+        // client by hand. Obeying that here would quietly switch the connection
+        // to that database whatever DB_NAME says — and migrate the wrong one.
+        if (preg_match('/^USE\s/i', $stmt)) continue;
         db()->exec($stmt);
     }
     $log[] = 'ran ' . basename($path);
