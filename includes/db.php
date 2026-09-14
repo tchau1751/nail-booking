@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/tenant.php';
 
 function db(): PDO {
     static $pdo = null;
@@ -16,9 +17,13 @@ function db(): PDO {
         $offset = (new DateTime('now', new DateTimeZone(APP_TIMEZONE)))->format('P');
         $pdo->exec("SET time_zone = '$offset'");
     }
+    // Before the first query reads a salon's rows, make sure the salons schema
+    // is there. A no-op after the first call.
+    tenancyBoot();
     return $pdo;
 }
 function query(string $sql, array $p = []): PDOStatement {
+    tenantGuard($sql);
     $s = db()->prepare($sql); $s->execute($p); return $s;
 }
 function fetchOne(string $sql, array $p = []): ?array {
@@ -33,6 +38,7 @@ function get_db(): PDO {   // alias used by the studio/POS pages
 function e($v): string {
     return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 }
+/** This salon's booking settings. */
 function settings(): array {
-    return fetchOne('SELECT * FROM business_settings WHERE id=1') ?? [];
+    return fetchOne('SELECT * FROM business_settings WHERE tenant_id=? ORDER BY id LIMIT 1', [tenantId()]) ?? [];
 }

@@ -13,9 +13,22 @@ function startSecureSession(): void {
     }
 }
 
+/**
+ * Signed in, and tied to a salon. A session left open from before there were
+ * salons has a user but no salon: it is given that user's own salon rather
+ * than thrown out, so an upgrade never signs anyone out of a till mid-ticket.
+ */
 function isLoggedIn(): bool {
     startSecureSession();
-    return !empty($_SESSION['admin_id']);
+    if (empty($_SESSION['admin_id'])) return false;
+    if (empty($_SESSION['tenant_id'])) {
+        $u = unscoped(function () {
+            return fetchOne('SELECT tenant_id FROM admin_users WHERE id=? AND is_active=1', [$_SESSION['admin_id']]);
+        });
+        if (!$u) { $_SESSION = []; return false; }
+        $_SESSION['tenant_id'] = (int)$u['tenant_id'];
+    }
+    return true;
 }
 
 function requireLogin(): void {
@@ -27,7 +40,8 @@ function requireLogin(): void {
 
 function currentAdmin(): ?array {
     if (!isLoggedIn()) return null;
-    return fetchOne('SELECT * FROM admin_users WHERE id=?', [$_SESSION['admin_id']]);
+    return fetchOne('SELECT * FROM admin_users WHERE id=? AND tenant_id=?',
+                    [$_SESSION['admin_id'], $_SESSION['tenant_id']]);
 }
 
 /**
@@ -71,15 +85,34 @@ function requireRole(string $atLeast): void {
     }
 }
 
-function loginAdmin(string $email, string $password): bool {
-    $a = fetchOne('SELECT * FROM admin_users WHERE email=? AND is_active=1', [$email]);
-    if (!$a || !password_verify($password, $a['password_hash'])) return false;
+/** What every way of signing in writes into the session. The salon comes from the user's own row. */
+function signIn(array $user): void {
     startSecureSession();
     session_regenerate_id(true);
-    $_SESSION['admin_id']   = $a['id'];
-    $_SESSION['admin_name'] = $a['name'];
-    $_SESSION['admin_role'] = $a['role'];
-    return true;
+    $_SESSION['admin_id']   = $user['id'];
+    $_SESSION['admin_name'] = $user['name'];
+    $_SESSION['admin_role'] = $user['role'];
+    $_SESSION['tenant_id']  = (int)$user['tenant_id'];
+}
+
+/**
+ * Signs in by email and password. Returns null on success, or the message to
+ * show. The email is looked up across every salon — it is the one thing that
+ * says which salon this person works for.
+ */
+function loginAdmin(string $email, string $password): ?string {
+    $a = unscoped(function () use ($email) {
+        return fetchOne('SELECT * FROM admin_users WHERE email=? AND is_active=1', [$email]);
+    });
+    if (!$a || !password_verify($password, $a['password_hash'])) {
+        return 'Invalid email or password. Please try again.';
+    }
+    $tenant = tenantFind((int)$a['tenant_id']);
+    if (!$tenant) return 'Invalid email or password. Please try again.';
+    if ($why = tenantSignInBlock($tenant)) return $why;
+
+    signIn($a);
+    return null;
 }
 
 function logoutAdmin(): void {
@@ -96,17 +129,21 @@ function logoutAdmin(): void {
 //  tablet, it locks out after a few wrong guesses, and it is stored
 //  hashed exactly like a password. The email login stays the way in
 //  for anything sensitive.
+//
+//  The tablet already knows its salon before anyone signs in, so the
+//  name list, the PIN check and the manager approval all stay inside
+//  that one salon — another salon's manager PIN approves nothing here.
 // ============================================================
 
 const PIN_MIN_DIGITS  = 4;
 const PIN_MAX_FAILS   = 5;
 const PIN_LOCK_MINUTES = 5;
 
-/** People who can sign in at the till, for the name list on the PIN screen. */
+/** People who can sign in at this salon's till, for the name list on the PIN screen. */
 function pinUsers(): array {
     return fetchAll("SELECT id, name, role FROM admin_users
-                     WHERE is_active=1 AND pin_hash IS NOT NULL AND pin_hash <> ''
-                     ORDER BY name");
+                     WHERE tenant_id=? AND is_active=1 AND pin_hash IS NOT NULL AND pin_hash <> ''
+                     ORDER BY name", [tenantId()]);
 }
 
 function pinLockedFor(array $user): int {
@@ -119,8 +156,10 @@ function pinLockedFor(array $user): int {
  * The message never says whether the PIN was close — only that it was wrong.
  */
 function loginByPin(int $userId, string $pin): ?string {
-    $u = fetchOne('SELECT * FROM admin_users WHERE id=? AND is_active=1', [$userId]);
+    $tid = tenantId();
+    $u = fetchOne('SELECT * FROM admin_users WHERE id=? AND tenant_id=? AND is_active=1', [$userId, $tid]);
     if (!$u || empty($u['pin_hash'])) return 'That person cannot sign in with a PIN.';
+    if ($why = tenantSignInBlock(currentTenant())) return $why;
 
     if ($wait = pinLockedFor($u)) {
         return 'Too many wrong PINs. Try again in ' . ceil($wait / 60) . ' min, or sign in with an email and password.';
@@ -128,33 +167,29 @@ function loginByPin(int $userId, string $pin): ?string {
     if (!password_verify($pin, $u['pin_hash'])) {
         $fails = (int)$u['pin_fails'] + 1;
         if ($fails >= PIN_MAX_FAILS) {
-            query('UPDATE admin_users SET pin_fails=0, pin_locked_until=DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE id=?',
-                  [PIN_LOCK_MINUTES, $u['id']]);
+            query('UPDATE admin_users SET pin_fails=0, pin_locked_until=DATE_ADD(NOW(), INTERVAL ? MINUTE)
+                   WHERE id=? AND tenant_id=?', [PIN_LOCK_MINUTES, $u['id'], $tid]);
             return 'Too many wrong PINs. Locked for ' . PIN_LOCK_MINUTES . ' minutes.';
         }
-        query('UPDATE admin_users SET pin_fails=? WHERE id=?', [$fails, $u['id']]);
+        query('UPDATE admin_users SET pin_fails=? WHERE id=? AND tenant_id=?', [$fails, $u['id'], $tid]);
         return 'Wrong PIN.';
     }
 
-    query('UPDATE admin_users SET pin_fails=0, pin_locked_until=NULL WHERE id=?', [$u['id']]);
-    startSecureSession();
-    session_regenerate_id(true);
-    $_SESSION['admin_id']   = $u['id'];
-    $_SESSION['admin_name'] = $u['name'];
-    $_SESSION['admin_role'] = $u['role'];
+    query('UPDATE admin_users SET pin_fails=0, pin_locked_until=NULL WHERE id=? AND tenant_id=?', [$u['id'], $tid]);
+    signIn($u);
     return null;
 }
 
 /**
- * Checks a PIN against every active manager and owner, without signing
- * anyone in — used when a manager stands over a technician's shoulder to
- * approve a discount. Returns the approving user, or null.
+ * Checks a PIN against this salon's active managers and owners, without
+ * signing anyone in — used when a manager stands over a technician's shoulder
+ * to approve a discount. Returns the approving user, or null.
  */
 function managerByPin(string $pin): ?array {
     if (strlen($pin) < PIN_MIN_DIGITS) return null;
     $rows = fetchAll("SELECT * FROM admin_users
-                      WHERE is_active=1 AND role IN ('manager','owner')
-                        AND pin_hash IS NOT NULL AND pin_hash <> ''");
+                      WHERE tenant_id=? AND is_active=1 AND role IN ('manager','owner')
+                        AND pin_hash IS NOT NULL AND pin_hash <> ''", [tenantId()]);
     foreach ($rows as $m) {
         if (pinLockedFor($m)) continue;
         if (password_verify($pin, $m['pin_hash'])) return $m;

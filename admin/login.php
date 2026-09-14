@@ -3,10 +3,10 @@ require_once __DIR__ . '/../includes/auth.php';
 if (isLoggedIn()) { header('Location: ' . BASE_PATH . '/admin/'); exit; }
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (loginAdmin(trim($_POST['email'] ?? ''), $_POST['password'] ?? '')) {
+    $error = loginAdmin(trim($_POST['email'] ?? ''), $_POST['password'] ?? '') ?? '';
+    if ($error === '') {
         header('Location: ' . BASE_PATH . '/admin/'); exit;
     }
-    $error = 'Invalid email or password. Please try again.';
 }
 ?>
 <!DOCTYPE html>

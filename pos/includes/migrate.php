@@ -5,34 +5,22 @@
 //  Called from pos/install.php.
 // ============================================================
 require_once __DIR__ . '/pos.php';
+require_once __DIR__ . '/../../includes/schema.php';
 
-function dbName(): string {
-    static $n = null;
-    if ($n === null) $n = fetchOne('SELECT DATABASE() d')['d'];
-    return $n;
-}
-function tableExists(string $t): bool {
-    return (bool)fetchOne('SELECT 1 x FROM information_schema.TABLES
-                           WHERE TABLE_SCHEMA=? AND TABLE_NAME=?', [dbName(), $t]);
-}
-function columnExists(string $t, string $c): bool {
-    return (bool)fetchOne('SELECT 1 x FROM information_schema.COLUMNS
-                           WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?', [dbName(), $t, $c]);
-}
-function addColumn(string $t, string $c, string $ddl, array &$log): void {
-    if (!tableExists($t) || columnExists($t, $c)) return;
-    db()->exec("ALTER TABLE `$t` ADD COLUMN `$c` $ddl");
-    $log[] = "added $t.$c";
-}
 function runSqlFile(string $path, array &$log): void {
     $sql = file_get_contents($path);
     if ($sql === false) throw new RuntimeException(basename($path) . ' is missing.');
     $sql = preg_replace('/^\s*--.*$/m', '', $sql);
+    // The starter rows in these files (settings, policies, demo stock) belong to
+    // a single salon. Once there are salons, ensureTenantDefaults() hands them
+    // out one salon at a time, and a bare insert here has no salon to land in.
+    $salons = tableExists('tenants');
     foreach (array_filter(array_map('trim', explode(';', $sql)), 'strlen') as $stmt) {
         // The files say USE nail_booking for anyone piping them into the mysql
         // client by hand. Obeying that here would quietly switch the connection
         // to that database whatever DB_NAME says — and migrate the wrong one.
         if (preg_match('/^USE\s/i', $stmt)) continue;
+        if ($salons && preg_match('/^INSERT\s/i', $stmt)) continue;
         db()->exec($stmt);
     }
     $log[] = 'ran ' . basename($path);
@@ -150,27 +138,31 @@ function migratePos(): array {
     // Which of the built-in colour schemes the till wears.
     addColumn('pos_settings', 'theme', "VARCHAR(30) NOT NULL DEFAULT 'black-gold'", $log);
 
+    // Many salons, one database: stamp every table with its salon, key the
+    // numbers per salon, and give each salon its starter rows. Runs before the
+    // counter seeding below, which needs to know whose tickets it is counting.
+    migrateTenancy($log);
+
     // Seed the number counters from whatever is already on the books, or the
     // first sale after this upgrade would try to reuse today's 0001.
     if (tableExists('pos_counters') && tableExists('pos_sales')) {
-        db()->exec("INSERT INTO pos_counters (name, seq)
-                    SELECT CONCAT('sale:', SUBSTRING_INDEX(sale_no, '-', 1)),
+        db()->exec("INSERT INTO pos_counters (tenant_id, name, seq)
+                    SELECT tenant_id, CONCAT('sale:', SUBSTRING_INDEX(sale_no, '-', 1)),
                            MAX(CAST(SUBSTRING_INDEX(sale_no, '-', -1) AS UNSIGNED))
                       FROM pos_sales WHERE sale_no LIKE '%-%'
-                     GROUP BY 1
+                     GROUP BY tenant_id, 2
                     ON DUPLICATE KEY UPDATE seq = GREATEST(seq, VALUES(seq))");
-        db()->exec("INSERT INTO pos_counters (name, seq)
-                    SELECT CONCAT('refund:', SUBSTRING_INDEX(refund_no, '-', 1)),
+        db()->exec("INSERT INTO pos_counters (tenant_id, name, seq)
+                    SELECT tenant_id, CONCAT('refund:', SUBSTRING_INDEX(refund_no, '-', 1)),
                            MAX(CAST(SUBSTRING_INDEX(refund_no, '-', -1) AS UNSIGNED))
                       FROM pos_refunds WHERE refund_no LIKE '%-%'
-                     GROUP BY 1
+                     GROUP BY tenant_id, 2
                     ON DUPLICATE KEY UPDATE seq = GREATEST(seq, VALUES(seq))");
         $log[] = 'seeded pos_counters from existing numbers';
     }
 
     // Index the client lookups the queue and directory lean on.
-    if (tableExists('pos_clients') && !fetchOne('SELECT 1 x FROM information_schema.STATISTICS
-            WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND INDEX_NAME=?', [dbName(), 'pos_clients', 'idx_lastvisit'])) {
+    if (tableExists('pos_clients') && !indexExists('pos_clients', 'idx_lastvisit')) {
         db()->exec('ALTER TABLE pos_clients ADD INDEX idx_lastvisit (last_visit)');
         $log[] = 'indexed pos_clients.last_visit';
     }

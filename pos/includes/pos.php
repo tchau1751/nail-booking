@@ -38,15 +38,16 @@ function posCsrfValid(?string $sent): bool {
 }
 
 function posSettings(): array {
-    static $s = null;
-    if ($s === null) {
-        $s = fetchOne('SELECT * FROM pos_settings WHERE id=1') ?: [
+    static $cache = [];
+    $tid = tenantId();
+    if (!isset($cache[$tid])) {
+        $cache[$tid] = fetchOne('SELECT * FROM pos_settings WHERE tenant_id=? ORDER BY id LIMIT 1', [$tid]) ?: [
             'currency_symbol' => '$', 'tax_rate' => 0, 'tax_label' => 'Sales Tax',
             'tax_services' => 0, 'receipt_header' => 'Diamond Nail & Spa',
             'receipt_footer' => '', 'tip_presets' => '15,18,20,25',
         ];
     }
-    return $s;
+    return $cache[$tid];
 }
 
 /** The colour schemes the till can wear, in the order Settings lists them. */
