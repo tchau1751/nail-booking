@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 require_once __DIR__ . '/../includes/auth.php';
 
-if (!isLoggedIn()) { http_response_code(401); echo json_encode(['error'=>'Unauthorized']); exit; }
+requireRoleJson('front_desk');
 
 $from = $_GET['start'] ?? date('Y-m-01');
 $to   = $_GET['end']   ?? date('Y-m-t');

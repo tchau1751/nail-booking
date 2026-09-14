@@ -1,11 +1,13 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
-if (isLoggedIn()) { header('Location: ' . BASE_PATH . '/admin/'); exit; }
+// The booking dashboard is a manager's screen; everyone else goes to the till.
+$landing = function (): string { return hasRole('manager') ? BASE_PATH . '/admin/' : posHome(); };
+if (isLoggedIn()) { header('Location: ' . $landing()); exit; }
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = loginAdmin(trim($_POST['email'] ?? ''), $_POST['password'] ?? '') ?? '';
     if ($error === '') {
-        header('Location: ' . BASE_PATH . '/admin/'); exit;
+        header('Location: ' . $landing()); exit;
     }
 }
 ?>

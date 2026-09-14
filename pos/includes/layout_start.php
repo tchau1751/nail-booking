@@ -2,8 +2,10 @@
 require_once __DIR__ . '/pos.php';
 requireTillLogin();
 // Role gate runs here, before a single byte of HTML, so the 403 page
-// can set its own status code and replace the screen entirely.
-if (!empty($requireRole)) requireRole($requireRole);
+// can set its own status code and replace the screen entirely. A page that
+// does not say who it is for is treated as a manager's page: the mistake then
+// shows up as a locked screen, never as an open one.
+requireRole($requireRole ?? 'manager');
 $admin = currentAdmin();
 
 if (!posInstalled() && basename($_SERVER['SCRIPT_NAME']) !== 'install.php') {
@@ -34,12 +36,13 @@ ob_start();
 $pageTitle = $pageTitle ?? 'POS';
 $activeNav = $activeNav ?? '';
 $fullBleed = $fullBleed ?? false;   // register screen fills the viewport, no page scroll
-$navMin = [   // minimum role for each screen; everything else is open to staff
-    'sales' => 'manager', 'giftcards' => 'manager', 'services' => 'manager',
-    'products' => 'manager', 'reports' => 'manager', 'payroll' => 'manager',
-    'marketing' => 'manager', 'feedback' => 'manager', 'settings' => 'manager',
-    'staff' => 'manager',   // the page itself keeps owners-only actions owner-only
-    'lookbook' => 'manager',
+// The least trusted role that sees each screen. Anything not listed is a
+// manager's screen; each page enforces the same minimum with $requireRole.
+$navMin = [
+    'register' => 'cashier',
+    'queue'    => 'technician',
+    'clients'  => 'front_desk',
+    'stamps'   => 'front_desk',
 ];
 $navItems  = [
     'register'  => ['💅', 'Register',  'index.php'],
@@ -59,7 +62,7 @@ $navItems  = [
     'staff'     => ['👤', 'Staff',     'staff.php'],
 ];
 foreach ($navItems as $k => $v) {
-    if (isset($navMin[$k]) && !hasRole($navMin[$k])) unset($navItems[$k]);
+    if (!hasRole($navMin[$k] ?? 'manager')) unset($navItems[$k]);
 }
 ?>
 <!DOCTYPE html>
@@ -119,9 +122,11 @@ $restActive = isset($navRest[$activeNav]);
     <!-- The signed-in name is not shown at the till — it takes room on the
          tablet's top bar and the guest can see it. It still prints on the
          receipt as the cashier, and the title below says who is signed in. -->
-    <a class="btn btn-ghost" href="<?= BASE_PATH ?>/studio/sms-log.php">SMS log</a>
+    <?php if (hasRole('manager')): ?>
+      <a class="btn btn-ghost" href="<?= BASE_PATH ?>/studio/sms-log.php">SMS log</a>
+    <?php endif; ?>
     <a class="btn btn-ghost" href="<?= BASE_PATH ?>/admin/logout.php"
-       title="Signed in as <?= e($admin['name'] ?? '') ?>">Sign out</a>
+       title="Signed in as <?= e($admin['name'] ?? '') ?> (<?= e(roleLabel($admin['role'] ?? '')) ?>)">Sign out</a>
   </div>
 </header>
 

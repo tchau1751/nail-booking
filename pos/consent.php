@@ -7,6 +7,7 @@
 // ============================================================
 $pageTitle = 'Consent form';
 $activeNav = 'clients';
+$requireRole = 'front_desk';
 require_once __DIR__ . '/includes/layout_start.php';
 require_once __DIR__ . '/includes/salon.php';
 

@@ -1,7 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once __DIR__ . '/../includes/auth.php';
-if (!isLoggedIn()) { http_response_code(401); echo json_encode(['error'=>'Unauthorized']); exit; }
+requireRoleJson('manager');
 
 $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET') {

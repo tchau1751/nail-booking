@@ -6,6 +6,9 @@
 //  anything touching another owner: a manager can never create an
 //  owner, edit one, or promote anybody to owner — otherwise
 //  "manager" would just be "owner" with extra steps.
+//
+//  Five roles, each able to do everything the ones below it can:
+//  technician → cashier → front desk → manager → owner.
 // ============================================================
 $pageTitle = 'Staff';
 $activeNav = 'staff';
@@ -43,7 +46,16 @@ function guardOwnerRole(string $role): void {
 function staffFind(int $id): ?array {
     return fetchOne('SELECT * FROM admin_users WHERE id=? AND tenant_id=?', [$id, tenantId()]);
 }
-/** A till PIN is four to eight digits and must not be a guessable run. */
+/** The roles this person can hand out: owner only by an owner. */
+function assignableRoles(): array {
+    $roles = ROLES;
+    if (!hasRole('owner')) unset($roles['owner']);
+    return array_reverse($roles, true);   // most trusted first, the way the list reads
+}
+function postedRole($posted): string {
+    return array_key_exists((string)$posted, ROLES) ? (string)$posted : 'cashier';
+}
+/** A PIN is four to eight digits and must not be a guessable run. */
 function pinProblem(string $pin): ?string {
     if (!preg_match('/^\d{4,8}$/', $pin))          return 'A PIN is 4 to 8 digits.';
     if (preg_match('/^(\d)\1+$/', $pin))            return 'That PIN is one digit repeated.';
@@ -61,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'create') {
             $name  = trim($_POST['name']);
             $email = strtolower(trim($_POST['email']));
-            $role  = in_array($_POST['role'], ['owner','manager','staff'], true) ? $_POST['role'] : 'staff';
+            $role  = postedRole($_POST['role'] ?? '');
             $pw    = (string)$_POST['password'];
 
             if ($name === '')                                   throw new RuntimeException('Enter their name.');
@@ -76,8 +88,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($p = passwordProblem($pw, $name, $email))       throw new RuntimeException($p);
             if ($pw !== ($_POST['password2'] ?? ''))            throw new RuntimeException('The two passwords don\'t match.');
 
-            query('INSERT INTO admin_users (tenant_id,name,email,password_hash,role,is_active) VALUES (?,?,?,?,?,1)',
-                  [tenantId(), $name, $email, password_hash($pw, PASSWORD_BCRYPT, ['cost' => 12]), $role]);
+            query('INSERT INTO admin_users (tenant_id,name,email,password_hash,role,technician_id,is_active) VALUES (?,?,?,?,?,?,1)',
+                  [tenantId(), $name, $email, password_hash($pw, PASSWORD_BCRYPT, ['cost' => 12]), $role,
+                   $role === 'technician' ? ownedId('technicians', $_POST['technician_id'] ?? null) : null]);
             $msg = 'Account created for ' . $name . '.';
             $newLogin = ['name' => $name, 'email' => $email, 'role' => $role];
 
@@ -97,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'role') {
             $id = (int)$_POST['id'];
             if ($id === $me) throw new RuntimeException('You can\'t change your own role — ask another owner.');
-            $role = in_array($_POST['role'], ['owner','manager','staff'], true) ? $_POST['role'] : 'staff';
+            $role = postedRole($_POST['role'] ?? '');
             $user = staffFind($id);
             if (!$user) throw new RuntimeException('Account not found.');
             // Both ends are guarded: a manager can neither touch an owner's
@@ -106,6 +119,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             guardOwnerRole($role);
             query('UPDATE admin_users SET role=? WHERE id=? AND tenant_id=?', [$role, $id, tenantId()]);
             $msg = 'Role updated.';
+
+        } elseif ($action === 'link') {
+            $id   = (int)$_POST['id'];
+            $user = staffFind($id);
+            if (!$user) throw new RuntimeException('Account not found.');
+            guardOwnerTarget($user);
+            query('UPDATE admin_users SET technician_id=? WHERE id=? AND tenant_id=?',
+                  [ownedId('technicians', $_POST['technician_id'] ?? null), $id, tenantId()]);
+            $msg = 'Technician link saved for ' . $user['name'] . '.';
 
         } elseif ($action === 'pin') {
             $id   = (int)$_POST['id'];
@@ -146,12 +168,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 $msg = $msg ?: ($_GET['m'] ?? '');
 
-$users = fetchAll('SELECT * FROM admin_users WHERE tenant_id=?
-                   ORDER BY is_active DESC, FIELD(role,"owner","manager","staff"), name', [tenantId()]);
+$users = fetchAll('SELECT u.*, t.name AS tech_name FROM admin_users u
+                   LEFT JOIN technicians t ON t.id = u.technician_id
+                   WHERE u.tenant_id=?
+                   ORDER BY u.is_active DESC, FIELD(u.role,"owner","manager","front_desk","cashier","technician"), u.name',
+                  [tenantId()]);
+$techs = fetchAll('SELECT id, name FROM technicians WHERE tenant_id=? AND is_active=1 ORDER BY display_order, name', [tenantId()]);
 $roleNote = [
-    'owner'   => 'Everything, and the only role that can create or change another owner',
-    'manager' => 'Everything except owner accounts — including logins, PINs and approving discounts',
-    'staff'   => 'Register, queue, kiosk and clients. No payroll, reports, settings, voids or discounts',
+    'owner'      => 'Everything, and the only role that can create or change another owner',
+    'manager'    => 'Everything except owner accounts — sales, refunds, reports, payroll, settings, logins, PINs, approving discounts',
+    'front_desk' => 'The register, plus the queue, kiosk, clients, stamp cards and consent forms',
+    'cashier'    => 'The register and receipts. A discount or a custom price still needs a manager\'s PIN',
+    'technician' => 'The queue board, and clocking themselves in and out once linked to their name',
 ];
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
@@ -166,7 +194,7 @@ $roleNote = [
       <tr><td>Sign in at</td><td><strong><?= e(APP_URL) ?>/admin/login.php</strong></td></tr>
       <tr><td>Email</td><td><strong><?= e($newLogin['email']) ?></strong></td></tr>
       <tr><td>Password</td><td><em>the one you just typed</em></td></tr>
-      <tr><td>Role</td><td><?= e($newLogin['role']) ?></td></tr>
+      <tr><td>Role</td><td><?= e(roleLabel($newLogin['role'])) ?></td></tr>
     </table>
     <a class="btn btn-light" href="<?= BASE_PATH ?>/pos/staff.php" style="margin-top:14px">Done</a>
   </div>
@@ -175,7 +203,8 @@ $roleNote = [
 <div class="card">
   <h2>👤 Add a staff login</h2>
   <p class="sub">Only people who use the till need an account. Technicians are paid and tracked
-     without one — add them under <a href="<?= BASE_PATH ?>/admin/">Technicians</a>.</p>
+     without one — add them under <a href="<?= BASE_PATH ?>/admin/">Technicians</a>. Give a technician a
+     login only if they should clock themselves in on the queue board.</p>
   <form method="post" autocomplete="off">
     <input type="hidden" name="action" value="create">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
@@ -183,16 +212,21 @@ $roleNote = [
       <label class="field"><span>Email (this is their username)</span><input type="text" name="email" required></label>
       <label class="field"><span>Role</span>
         <select name="role">
-          <option value="staff">Staff</option>
-          <option value="manager">Manager</option>
-          <?php if (hasRole('owner')): ?><option value="owner">Owner</option><?php endif; ?>
+          <?php foreach (assignableRoles() as $r => $label): ?>
+            <option value="<?= e($r) ?>" <?= $r === 'cashier' ? 'selected' : '' ?>><?= e($label) ?></option>
+          <?php endforeach; ?>
+        </select></label>
+      <label class="field"><span>Their name on the turns board (technicians)</span>
+        <select name="technician_id">
+          <option value="">— not a technician —</option>
+          <?php foreach ($techs as $t): ?><option value="<?= (int)$t['id'] ?>"><?= e($t['name']) ?></option><?php endforeach; ?>
         </select></label>
       <label class="field"><span>Password</span><input type="password" name="password" required minlength="<?= MIN_PASSWORD ?>" autocomplete="new-password"></label>
       <label class="field"><span>Repeat password</span><input type="password" name="password2" required autocomplete="new-password"></label>
     </div>
     <p class="sub">
       <?php foreach ($roleNote as $r => $n): ?>
-        <strong><?= ucfirst($r) ?>:</strong> <?= e($n) ?><br>
+        <strong><?= e(roleLabel($r)) ?>:</strong> <?= e($n) ?><br>
       <?php endforeach; ?>
     </p>
     <button class="btn btn-green" type="submit">Create account</button>
@@ -203,26 +237,43 @@ $roleNote = [
   <h2>Accounts</h2>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Till PIN</th><th>New password</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Technician</th><th>Status</th><th>Till PIN</th><th>New password</th><th></th></tr></thead>
       <tbody>
       <?php foreach ($users as $u): $isMe = (int)$u['id'] === (int)($admin['id'] ?? 0); ?>
         <tr style="<?= $u['is_active'] ? '' : 'opacity:.5' ?>">
           <td><strong><?= e($u['name']) ?></strong><?= $isMe ? ' <span class="pill pill-ok">you</span>' : '' ?></td>
           <td><?= e($u['email']) ?></td>
           <td>
-            <?php if ($isMe): ?>
-              <?= e($u['role']) ?>
+            <?php if ($isMe || ($u['role'] === 'owner' && !hasRole('owner'))): ?>
+              <?= e(roleLabel($u['role'])) ?>
             <?php else: ?>
               <form method="post" style="display:flex;gap:6px">
                 <input type="hidden" name="action" value="role">
                 <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
                 <select name="role" style="min-height:38px">
-                  <?php foreach ((hasRole('owner') ? ['owner','manager','staff'] : ['manager','staff']) as $r): ?>
-                    <option value="<?= $r ?>" <?= $u['role'] === $r ? 'selected' : '' ?>><?= ucfirst($r) ?></option>
+                  <?php foreach (assignableRoles() as $r => $label): ?>
+                    <option value="<?= e($r) ?>" <?= roleRank($u['role']) === roleRank($r) ? 'selected' : '' ?>><?= e($label) ?></option>
                   <?php endforeach; ?>
                 </select>
                 <button class="btn btn-light btn-sm" type="submit">Set</button>
               </form>
+            <?php endif; ?>
+          </td>
+          <td>
+            <?php if ($u['role'] === 'technician'): ?>
+              <form method="post" style="display:flex;gap:6px">
+                <input type="hidden" name="action" value="link">
+                <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
+                <select name="technician_id" style="min-height:38px">
+                  <option value="">— not linked —</option>
+                  <?php foreach ($techs as $t): ?>
+                    <option value="<?= (int)$t['id'] ?>" <?= (int)$u['technician_id'] === (int)$t['id'] ? 'selected' : '' ?>><?= e($t['name']) ?></option>
+                  <?php endforeach; ?>
+                </select>
+                <button class="btn btn-light btn-sm" type="submit">Set</button>
+              </form>
+            <?php else: ?>
+              <span style="color:var(--ink-soft)"><?= e($u['tech_name'] ?: '—') ?></span>
             <?php endif; ?>
           </td>
           <td><span class="pill <?= $u['is_active'] ? 'pill-ok' : 'pill-void' ?>"><?= $u['is_active'] ? 'active' : 'disabled' ?></span></td>

@@ -45,10 +45,27 @@ function currentAdmin(): ?array {
 }
 
 /**
- * Roles, weakest first. A manager can do anything a staff member can.
+ * The five roles, least trusted first. Each can do everything the ones before
+ * it can: a front desk can ring up a sale, a manager can seat a guest.
  */
+const ROLES = [
+    'technician' => 'Technician',
+    'cashier'    => 'Cashier',
+    'front_desk' => 'Front desk',
+    'manager'    => 'Manager',
+    'owner'      => 'Owner',
+];
+
 function roleRank(?string $role): int {
-    return ['staff' => 1, 'manager' => 2, 'owner' => 3][$role ?? ''] ?? 0;
+    // Accounts from before there were five roles could run the register, the
+    // queue and the kiosk — which is what the front desk does.
+    if ($role === 'staff') $role = 'front_desk';
+    $i = array_search($role, array_keys(ROLES), true);
+    return $i === false ? 0 : $i + 1;
+}
+
+function roleLabel(?string $role): string {
+    return ROLES[$role === 'staff' ? 'front_desk' : (string)$role] ?? 'No role';
 }
 
 function currentRole(): string {
@@ -60,6 +77,11 @@ function hasRole(string $atLeast): bool {
     return roleRank(currentRole()) >= roleRank($atLeast);
 }
 
+/** The first till screen a person's role can open — where signing in takes them. */
+function posHome(): string {
+    return BASE_PATH . '/pos/' . (hasRole('cashier') ? '' : 'queue.php');
+}
+
 /**
  * Gate a page behind a minimum role. Money and staff pages use this so a
  * technician signed in at the till can't read payroll or change settings.
@@ -68,7 +90,6 @@ function requireRole(string $atLeast): void {
     requireLogin();
     if (!hasRole($atLeast)) {
         http_response_code(403);
-        $home = BASE_PATH . '/pos/';
         echo '<!doctype html><meta charset="utf-8">'
            . '<meta name="viewport" content="width=device-width,initial-scale=1">'
            . '<title>Not allowed</title>'
@@ -76,11 +97,27 @@ function requireRole(string $atLeast): void {
            . 'margin:14vh auto;padding:28px;text-align:center;color:#3a2a24">'
            . '<div style="font-size:52px">🔒</div>'
            . '<h1 style="font-size:22px;margin:10px 0">Not your pay grade</h1>'
-           . '<p style="color:#7a6a63">This screen is for managers and the owner. '
-           . 'Ask them to sign in if you need it.</p>'
-           . '<a href="' . $home . '" style="display:inline-block;margin-top:18px;padding:14px 24px;'
+           . '<p style="color:#7a6a63">This screen needs ' . e(roleLabel($atLeast)) . ' access or above. '
+           . 'Ask a manager to sign in if you need it.</p>'
+           . '<a href="' . e(posHome()) . '" style="display:inline-block;margin-top:18px;padding:14px 24px;'
            . 'background:#3a2a24;color:#fff;border-radius:12px;text-decoration:none;font-weight:700">'
-           . 'Back to the register</a></div>';
+           . 'Back to your screen</a></div>';
+        exit;
+    }
+}
+
+/** The same gate for a JSON endpoint: an answer the tablet can read, not an HTML page. */
+function requireRoleJson(string $atLeast): void {
+    if (!isLoggedIn()) {
+        http_response_code(401);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'Not signed in.']);
+        exit;
+    }
+    if (!hasRole($atLeast)) {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'This needs ' . roleLabel($atLeast) . ' access or above.']);
         exit;
     }
 }

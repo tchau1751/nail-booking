@@ -8,6 +8,7 @@
 // ============================================================
 $pageTitle = 'Stamp Cards';
 $activeNav = 'stamps';
+$requireRole = 'front_desk';
 require_once __DIR__ . '/includes/layout_start.php';
 require_once __DIR__ . '/includes/rewards.php';
 require_once __DIR__ . '/includes/salon.php';

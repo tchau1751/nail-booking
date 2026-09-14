@@ -9,6 +9,7 @@
 require_once __DIR__ . '/includes/salon.php';
 require_once __DIR__ . '/includes/rewards.php';
 requireTillLogin();
+requireRole('front_desk');   // the front desk signs the kiosk tablet in and hands it to guests
 
 $set      = posSettings();
 $biz      = settings();

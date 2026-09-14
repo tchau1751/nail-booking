@@ -32,13 +32,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $err = $noSalon;
         }
         if ($err === '') {
-            header('Location: ' . BASE_PATH . '/pos/');
+            header('Location: ' . posHome());
             exit;
         }
     }
 }
 
-if (isLoggedIn()) { header('Location: ' . BASE_PATH . '/pos/'); exit; }
+if (isLoggedIn()) { header('Location: ' . posHome()); exit; }
 
 $people = []; $salon = 'Nail Salon'; $theme = 'black-gold'; $salonKnown = true;
 try {

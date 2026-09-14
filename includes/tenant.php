@@ -28,8 +28,9 @@ const TENANT_TABLES = [
  * Raised whenever the tenancy schema learns something new; tenancyBoot() catches up.
  *   1  tenants, plans, tenant_id everywhere, per-salon keys
  *   2  tenant_id no longer defaults to salon 1
+ *   3  five roles; technician logins linked to their technician
  */
-const TENANCY_VERSION = 2;
+const TENANCY_VERSION = 3;
 
 // Refuse any query on a salon's table that never mentions tenant_id. A missed
 // query then fails in front of whoever is testing it, instead of quietly

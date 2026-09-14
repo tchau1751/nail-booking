@@ -2,6 +2,7 @@
 // One-click installer: creates the POS tables from schema_pos.sql.
 $pageTitle = 'Install POS';
 $activeNav = '';
+$requireRole = 'owner';   // it changes the database itself
 require_once __DIR__ . '/includes/layout_start.php';
 
 require_once __DIR__ . '/includes/migrate.php';

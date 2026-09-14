@@ -3,7 +3,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/sms.php';
 
-if (!isLoggedIn()) { http_response_code(401); echo json_encode(['error'=>'Unauthorized']); exit; }
+requireRoleJson('front_desk');
 
 $method = $_SERVER['REQUEST_METHOD'];
 $tid    = tenantId();

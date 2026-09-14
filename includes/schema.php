@@ -197,6 +197,32 @@ function migrateTenancyLocked(array &$log): void {
         ensureTenantDefaults((int)$tenant['id'], (string)$tenant['name'], $log);
     }
 
+    // Five roles instead of three. A "staff" account could run the register,
+    // the queue and the kiosk — the front desk's job — so that is what it becomes.
+    if (tableExists('admin_users')) {
+        $roleType = function (): string {
+            return (string)(fetchOne("SELECT COLUMN_TYPE t FROM information_schema.COLUMNS
+                                      WHERE TABLE_SCHEMA=? AND TABLE_NAME='admin_users' AND COLUMN_NAME='role'",
+                                     [dbName()])['t'] ?? '');
+        };
+        if (strpos($roleType(), 'front_desk') === false) {
+            db()->exec("ALTER TABLE admin_users MODIFY role
+                        ENUM('owner','manager','front_desk','cashier','technician','staff') DEFAULT 'cashier'");
+        }
+        if (fetchOne("SELECT 1 x FROM admin_users WHERE role='staff' LIMIT 1")) {
+            query("UPDATE admin_users SET role='front_desk' WHERE role='staff'");
+            $log[] = 'staff accounts are now front desk';
+        }
+        if (strpos($roleType(), "'staff'") !== false) {
+            db()->exec("ALTER TABLE admin_users MODIFY role
+                        ENUM('owner','manager','front_desk','cashier','technician') DEFAULT 'cashier'");
+            $log[] = 'admin_users: owner, manager, front desk, cashier, technician';
+        }
+        // A technician's login points at their row on the turns board, so they
+        // can clock themselves in without being able to clock anyone else.
+        addColumn('admin_users', 'technician_id', 'INT DEFAULT NULL', $log);
+    }
+
     // Only call it done once sign-in itself can work. On a database whose
     // booking tables have not been imported yet, try again next request.
     if (tableExists('admin_users') && columnExists('admin_users', 'tenant_id')) {

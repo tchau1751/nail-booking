@@ -10,6 +10,7 @@
 // ============================================================
 require_once __DIR__ . '/../includes/pos.php';
 if (!isLoggedIn()) jsonOut(['error' => 'Not signed in.'], 401);
+if (!hasRole('cashier')) jsonOut(['error' => 'Your role cannot use the register.'], 403);
 // Same second lock the page forms get: SameSite=Lax is a browser default, not
 // a guarantee this endpoint is allowed to rely on.
 if (!posCsrfValid($_POST['_csrf'] ?? $_GET['_csrf'] ?? null)) {

@@ -1,13 +1,23 @@
 <?php
 $pageTitle = 'Queue & Turns';
 $activeNav = 'queue';
+$requireRole = 'technician';   // everyone sees the board; what they can do on it depends on the role
 require_once __DIR__ . '/includes/layout_start.php';
 require_once __DIR__ . '/includes/salon.php';
+
+// Seating and moving guests is the front desk's job. A technician can watch the
+// board and clock themselves — only themselves — in and out.
+$canDesk  = hasRole('front_desk');
+$myTechId = (int)($admin['technician_id'] ?? 0);
 
 $msg = ''; $err = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        switch ($_POST['action'] ?? '') {
+        $action = $_POST['action'] ?? '';
+        if (in_array($action, ['checkin', 'assign', 'status'], true) && !$canDesk) {
+            throw new RuntimeException('Only the front desk can seat or move guests.');
+        }
+        switch ($action) {
             case 'checkin':
                 checkInGuest($_POST);
                 $msg = 'Guest checked in.';
@@ -22,6 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             case 'clock':
                 $techId = (int)$_POST['tech_id'];
+                if (!$canDesk && ($myTechId === 0 || $techId !== $myTechId)) {
+                    throw new RuntimeException('You can only clock yourself in and out.');
+                }
                 $who    = fetchOne('SELECT name FROM technicians WHERE id=? AND tenant_id=?', [$techId, tenantId()])['name'] ?? 'Technician';
                 if ($_POST['dir'] === 'in') { clockIn($techId);  $msg = $who . ' is on the floor.'; }
                 else                        { clockOut($techId); $msg = $who . ' has clocked out.'; }
@@ -45,6 +58,10 @@ $latestApptId = (int)(fetchOne('SELECT MAX(id) m FROM appointments WHERE tenant_
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-err"><?= e($err) ?></div><?php endif; ?>
+<?php if (!$canDesk && $myTechId === 0): ?>
+  <div class="alert alert-err">Your login is not linked to your name on the turns board yet, so it cannot
+    clock you in. Ask a manager to link it under Staff.</div>
+<?php endif; ?>
 
 <!-- New online bookings pop in here with a chime — see the script at the
      bottom of this page. Empty and hidden until something arrives. -->
@@ -63,10 +80,10 @@ $latestApptId = (int)(fetchOne('SELECT MAX(id) m FROM appointments WHERE tenant_
   <!-- ── WAITING LIST ─────────────────────────────────── -->
   <div class="card">
     <h2>🪑 Waiting list</h2>
-    <p class="sub">Tap a technician's name on a guest to assign them.</p>
+    <p class="sub"><?= $canDesk ? 'Tap a technician\'s name on a guest to assign them.' : 'Who is waiting, and who is with whom.' ?></p>
 
     <?php if (!$waiting): ?>
-      <div class="empty">Nobody is waiting. Check a guest in below.</div>
+      <div class="empty">Nobody is waiting.<?= $canDesk ? ' Check a guest in below.' : '' ?></div>
     <?php endif; ?>
 
     <?php foreach ($waiting as $w): ?>
@@ -93,6 +110,7 @@ $latestApptId = (int)(fetchOne('SELECT MAX(id) m FROM appointments WHERE tenant_
           </div>
         </div>
 
+        <?php if ($canDesk): ?>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
           <?php foreach ($board as $t): if (!$t['on_floor']) continue; ?>
             <form method="post" style="display:inline">
@@ -116,6 +134,7 @@ $latestApptId = (int)(fetchOne('SELECT MAX(id) m FROM appointments WHERE tenant_
             <button class="btn btn-sm btn-light" type="submit">No-show</button>
           </form>
         </div>
+        <?php endif; ?>
       </div>
     <?php endforeach; ?>
   </div>
@@ -129,7 +148,7 @@ $latestApptId = (int)(fetchOne('SELECT MAX(id) m FROM appointments WHERE tenant_
       <table>
         <thead><tr><th>Technician</th><th class="num">Turns</th><th class="num">Guests</th><th>Status</th><th></th></tr></thead>
         <tbody>
-        <?php foreach ($board as $t): ?>
+        <?php foreach ($board as $t): $mayClock = $canDesk || (int)$t['id'] === $myTechId; ?>
           <tr style="<?= $t['is_next'] ? 'background:#eefaf1' : '' ?>">
             <td>
               <strong><?= e($t['name']) ?></strong>
@@ -146,6 +165,7 @@ $latestApptId = (int)(fetchOne('SELECT MAX(id) m FROM appointments WHERE tenant_
               <?php endif; ?>
             </td>
             <td>
+              <?php if ($mayClock): ?>
               <form method="post" class="clock-form"
                     <?= $t['on_floor'] ? 'data-confirm="Clock ' . e($t['name']) . ' out for the day?"' : '' ?>>
                 <input type="hidden" name="action" value="clock">
@@ -155,6 +175,7 @@ $latestApptId = (int)(fetchOne('SELECT MAX(id) m FROM appointments WHERE tenant_
                   <?= $t['on_floor'] ? 'Clock out' : 'Clock in' ?>
                 </button>
               </form>
+              <?php endif; ?>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -164,6 +185,7 @@ $latestApptId = (int)(fetchOne('SELECT MAX(id) m FROM appointments WHERE tenant_
   </div>
 </div>
 
+<?php if ($canDesk): ?>
 <!-- ── CHECK A GUEST IN ───────────────────────────────── -->
 <div class="card">
   <h2>➕ Check in a guest</h2>
@@ -196,6 +218,7 @@ $latestApptId = (int)(fetchOne('SELECT MAX(id) m FROM appointments WHERE tenant_
     <button class="btn btn-green btn-lg" type="submit">Check in</button>
   </form>
 </div>
+<?php endif; ?>
 
 <script>
   // Clocking out is the destructive half of the toggle, so it asks first —

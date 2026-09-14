@@ -2,6 +2,7 @@
 $pageTitle = 'Register';
 $activeNav = 'register';
 $fullBleed = true;
+$requireRole = 'cashier';
 require_once __DIR__ . '/includes/layout_start.php';
 require_once __DIR__ . '/includes/salon.php';
 require_once __DIR__ . '/includes/rewards.php';

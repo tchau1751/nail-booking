@@ -3,6 +3,7 @@
 require_once __DIR__ . '/includes/pos.php';
 require_once __DIR__ . '/includes/receipt_text.php';
 requireTillLogin();
+requireRole('cashier');
 
 $id   = (int)($_GET['id'] ?? 0);
 $tid  = tenantId();

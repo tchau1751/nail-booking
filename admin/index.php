@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
-requireLogin();
+requireRole('manager');
 $admin = currentAdmin();
 ?>
 <!DOCTYPE html>
