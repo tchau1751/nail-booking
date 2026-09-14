@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/plans.php';
 requireRoleJson('manager');
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -17,6 +18,15 @@ function saveTechServices(int $techId, array $serviceIds): void {
     }
 }
 
+/** The plan counts technicians who are working; adding or bringing one back must fit. */
+function refuseOverPlan(): void {
+    if ($why = planRoomFor('employees')) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'error' => $why]);
+        exit;
+    }
+}
+
 if ($method === 'GET') {
     $techs = fetchAll('SELECT * FROM technicians WHERE tenant_id=? ORDER BY display_order,id', [$tid]);
     foreach ($techs as &$t) {
@@ -26,6 +36,7 @@ if ($method === 'GET') {
     echo json_encode(['success'=>true,'data'=>$techs]);
 } elseif ($method === 'POST') {
     $d = json_decode(file_get_contents('php://input'),true);
+    refuseOverPlan();
     query('INSERT INTO technicians (tenant_id,name,phone,email,bio,photo_url,specialties,is_active,display_order) VALUES (?,?,?,?,?,?,?,?,?)',
         [$tid,$d['name'],$d['phone']??'',$d['email']??'',$d['bio']??'',$d['photo_url']??'',$d['specialties']??'',1,(int)($d['display_order']??0)]);
     $id = (int)db()->lastInsertId();
@@ -34,7 +45,9 @@ if ($method === 'GET') {
 } elseif ($method === 'PUT') {
     $d  = json_decode(file_get_contents('php://input'),true);
     $id = (int)($d['id']??0);
-    if (!tenantOwns('technicians', $id)) { http_response_code(404); echo json_encode(['success'=>false,'error'=>'Technician not found.']); exit; }
+    $current = fetchOne('SELECT is_active FROM technicians WHERE id=? AND tenant_id=?', [$id, $tid]);
+    if (!$current) { http_response_code(404); echo json_encode(['success'=>false,'error'=>'Technician not found.']); exit; }
+    if (!(int)$current['is_active'] && (int)($d['is_active'] ?? 0) === 1) refuseOverPlan();
     query('UPDATE technicians SET name=?,phone=?,email=?,bio=?,photo_url=?,specialties=?,is_active=?,display_order=? WHERE id=? AND tenant_id=?',
         [$d['name'],$d['phone']??'',$d['email']??'',$d['bio']??'',$d['photo_url']??'',$d['specialties']??'',(int)$d['is_active'],(int)($d['display_order']??0),$id,$tid]);
     saveTechServices($id, (array)($d['service_ids'] ?? []));

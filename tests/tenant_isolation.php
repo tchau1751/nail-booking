@@ -16,6 +16,7 @@
 //
 //  Exit code 0 means every check passed.
 // ============================================================
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }   // never from a browser
 define('TENANT_GUARD', true);
 chdir(dirname(__DIR__));
 require 'pos/includes/salon.php';

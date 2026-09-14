@@ -11,6 +11,7 @@
 //  whoever has it.
 // ============================================================
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/plans.php';
 
 const DEVICE_KINDS = [
     'pos'        => 'POS station',
@@ -40,13 +41,7 @@ function deviceFind(int $id): ?array {
 
 /** Null while the salon's plan has room for another active device, otherwise why not. */
 function deviceLimitReached(): ?string {
-    $max = currentTenant()['max_devices'];
-    if ($max === null) return null;
-    $used = (int)fetchOne('SELECT COUNT(*) n FROM pos_devices WHERE tenant_id=? AND is_active=1', [tenantId()])['n'];
-    if ($used < (int)$max) return null;
-    return 'The ' . (currentTenant()['plan_name'] ?? 'current') . ' plan covers ' . (int)$max
-         . ' device' . ((int)$max === 1 ? '' : 's') . ', and ' . $used . ' are switched on. '
-         . 'Switch one off first, or move to a bigger plan.';
+    return planRoomFor('devices');
 }
 
 function deviceCookieOptions(int $expires): array {

@@ -14,8 +14,11 @@ DirectoryIndex index.php
     RewriteEngine On
     RewriteBase /nail-booking/
 
-    # Block direct access to sensitive folders
-    RewriteRule ^(includes|config|cron)(/|$) - [F,L]
+    # Block direct access to sensitive folders, and to what only the server
+    # needs: the command-line tools and tests, developer notes, and the SQL
+    # files (schema.sql carries the default owner's password hash).
+    RewriteRule ^(includes|config|cron|tools|tests|docs|\.claude)(/|$) - [F,L]
+    RewriteRule \.(sql|md)$ - [F,L]
 
     # Admin shortcuts
     RewriteRule ^admin/?$        admin/index.php [L]

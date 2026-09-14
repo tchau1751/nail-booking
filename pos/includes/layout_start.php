@@ -141,3 +141,16 @@ $restActive = isset($navRest[$activeNav]);
 </header>
 
 <main class="<?= $fullBleed ? 'screen' : 'page' ?>">
+<?php
+// How the salon's account stands, for the people who can do something about it
+// — and never on the register itself, where the guest can see the screen.
+$account = currentTenant();
+if (!$fullBleed && hasRole('manager')):
+    if ($account['status'] === 'past_due'): ?>
+  <div class="alert alert-err">The salon's subscription payment is past due. The till keeps working for now —
+    please settle it before the account is suspended.</div>
+<?php elseif ($account['status'] === 'trial' && !empty($account['trial_ends_on'])): ?>
+  <div class="alert alert-ok">Trying the <?= e($account['plan_name'] ?? '') ?> plan — the trial ends
+    <?= date('F j', strtotime($account['trial_ends_on'])) ?>.</div>
+<?php endif;
+endif; ?>

@@ -245,6 +245,29 @@ function migrateTenancyLocked(array &$log): void {
     // Which station rang the sale up — POS #1 or POS #2 — for the reports.
     addColumn('pos_sales', 'device_id', 'INT DEFAULT NULL', $log);
 
+    // The platform: the people who run the service itself, kept apart from
+    // every salon's staff, and a log of everything they change.
+    db()->exec("CREATE TABLE IF NOT EXISTS platform_admins (
+        id            INT AUTO_INCREMENT PRIMARY KEY,
+        name          VARCHAR(120) NOT NULL,
+        email         VARCHAR(180) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        is_active     TINYINT(1) NOT NULL DEFAULT 1,
+        last_login_at DATETIME DEFAULT NULL,
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB");
+    db()->exec("CREATE TABLE IF NOT EXISTS platform_audit (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        admin_id   INT DEFAULT NULL,
+        tenant_id  INT DEFAULT NULL,
+        action     VARCHAR(40)  NOT NULL,
+        detail     VARCHAR(255) NOT NULL DEFAULT '',
+        ip         VARCHAR(45)  NOT NULL DEFAULT '',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_when (created_at),
+        KEY idx_ip_action (ip, action, created_at)
+    ) ENGINE=InnoDB");
+
     // Only call it done once sign-in itself can work. On a database whose
     // booking tables have not been imported yet, try again next request.
     if (tableExists('admin_users') && columnExists('admin_users', 'tenant_id')) {

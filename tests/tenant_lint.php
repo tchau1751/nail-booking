@@ -13,6 +13,7 @@
 //
 //  Exit code 0 means nothing was found.
 // ============================================================
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }   // it prints the app's SQL
 chdir(dirname(__DIR__));
 require 'includes/tenant.php';   // for TENANT_TABLES only; nothing is called
 

@@ -14,6 +14,7 @@ $pageTitle = 'Staff';
 $activeNav = 'staff';
 $requireRole = 'manager';   // enforced by layout_start before any output
 require_once __DIR__ . '/includes/layout_start.php';
+require_once __DIR__ . '/../includes/plans.php';
 
 const MIN_PASSWORD = 8;
 
@@ -87,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             guardOwnerRole($role);
             if ($p = passwordProblem($pw, $name, $email))       throw new RuntimeException($p);
             if ($pw !== ($_POST['password2'] ?? ''))            throw new RuntimeException('The two passwords don\'t match.');
+            if ($why = planRoomFor('users'))                    throw new RuntimeException($why);
 
             query('INSERT INTO admin_users (tenant_id,name,email,password_hash,role,technician_id,is_active) VALUES (?,?,?,?,?,?,1)',
                   [tenantId(), $name, $email, password_hash($pw, PASSWORD_BCRYPT, ['cost' => 12]), $role,
@@ -159,6 +161,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         [tenantId()])['n'];
                 if ($owners <= 1) throw new RuntimeException('That is the only active owner — promote someone else first.');
             }
+            // Turning a login back on counts against the plan like a new one.
+            if (!$user['is_active'] && ($why = planRoomFor('users'))) throw new RuntimeException($why);
             query('UPDATE admin_users SET is_active=? WHERE id=? AND tenant_id=?', [$user['is_active'] ? 0 : 1, $id, tenantId()]);
             $msg = $user['is_active'] ? $user['name'] . ' can no longer sign in.' : $user['name'] . ' can sign in again.';
         }
