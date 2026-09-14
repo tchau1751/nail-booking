@@ -42,9 +42,15 @@ if (isLoggedIn()) { header('Location: ' . posHome()); exit; }
 
 $people = []; $salon = 'Nail Salon'; $theme = 'black-gold'; $salonKnown = true;
 try {
-    $people = pinUsers();
     $salon  = settings()['business_name'] ?? 'Nail Salon';
     $theme  = posTheme();
+    if ($why = pinBlockedHere()) {
+        // No names for a browser the salon has not registered.
+        $salonKnown = false;
+        $err = $err ?: $why;
+    } else {
+        $people = pinUsers();
+    }
 } catch (TenantMissing $e) {
     $salonKnown = false;
     $err = $err ?: $noSalon;

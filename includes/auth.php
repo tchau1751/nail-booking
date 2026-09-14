@@ -14,9 +14,12 @@ function startSecureSession(): void {
 }
 
 /**
- * Signed in, and tied to a salon. A session left open from before there were
- * salons has a user but no salon: it is given that user's own salon rather
- * than thrown out, so an upgrade never signs anyone out of a till mid-ticket.
+ * Signed in, tied to a salon, and — for a session started on a registered
+ * device — on a device that is still switched on.
+ *
+ * A session left open from before there were salons has a user but no salon:
+ * it is given that user's own salon rather than thrown out, so an upgrade never
+ * signs anyone out of a till mid-ticket.
  */
 function isLoggedIn(): bool {
     startSecureSession();
@@ -28,7 +31,22 @@ function isLoggedIn(): bool {
         if (!$u) { $_SESSION = []; return false; }
         $_SESSION['tenant_id'] = (int)$u['tenant_id'];
     }
+    // A manager switched this tablet off: whoever is on it is signed out on
+    // their next tap, not whenever the session happens to run out.
+    if (!empty($_SESSION['device_id']) && !deviceStillOn((int)$_SESSION['device_id'], (int)$_SESSION['tenant_id'])) {
+        $_SESSION = [];
+        return false;
+    }
     return true;
+}
+
+function deviceStillOn(int $deviceId, int $tenantId): bool {
+    static $seen = [];
+    if (!isset($seen[$deviceId])) {
+        $seen[$deviceId] = (bool)fetchOne('SELECT 1 x FROM pos_devices WHERE id=? AND tenant_id=? AND is_active=1',
+                                          [$deviceId, $tenantId]);
+    }
+    return $seen[$deviceId];
 }
 
 function requireLogin(): void {
@@ -135,6 +153,17 @@ function signIn(array $user): void {
     $_SESSION['admin_name'] = $user['name'];
     $_SESSION['admin_role'] = $user['role'];
     $_SESSION['tenant_id']  = (int)$user['tenant_id'];
+
+    // Signing in on one of the salon's registered devices ties the session to
+    // it: switching the device off signs this person out, and each sale knows
+    // which station rang it up.
+    unset($_SESSION['device_id']);
+    $device = deviceFromCookie();
+    if ($device && (int)$device['is_active'] === 1 && (int)$device['tenant_id'] === (int)$user['tenant_id']) {
+        $_SESSION['device_id'] = (int)$device['id'];
+        query('UPDATE pos_devices SET last_user_id=?, last_seen_at=NOW() WHERE id=? AND tenant_id=?',
+              [$user['id'], $device['id'], $user['tenant_id']]);
+    }
 }
 
 /**
@@ -175,11 +204,29 @@ function logoutAdmin(): void {
 //  The tablet already knows its salon before anyone signs in, so the
 //  name list, the PIN check and the manager approval all stay inside
 //  that one salon — another salon's manager PIN approves nothing here.
+//  And once a salon has registered its devices, a PIN only works on
+//  one of them.
 // ============================================================
 
 const PIN_MIN_DIGITS  = 4;
 const PIN_MAX_FAILS   = 5;
 const PIN_LOCK_MINUTES = 5;
+
+/**
+ * Null when this browser may use a PIN, otherwise why not. A salon that has
+ * never registered a device keeps working exactly as before; one that has
+ * registered any takes PINs only on those.
+ */
+function pinBlockedHere(): ?string {
+    $tid    = tenantId();
+    $device = deviceFromCookie();
+    if ($device && (int)$device['is_active'] === 1 && (int)$device['tenant_id'] === $tid) return null;
+    $usesDevices = (bool)fetchOne('SELECT 1 x FROM pos_devices WHERE tenant_id=? AND is_active=1 LIMIT 1', [$tid]);
+    return $usesDevices
+        ? 'This tablet is not registered to the salon, so PINs do not work on it. Sign in with your email and '
+          . 'password, or ask a manager to register it under Devices.'
+        : null;
+}
 
 /** People who can sign in at this salon's till, for the name list on the PIN screen. */
 function pinUsers(): array {
@@ -199,6 +246,7 @@ function pinLockedFor(array $user): int {
  */
 function loginByPin(int $userId, string $pin): ?string {
     $tid = tenantId();
+    if ($why = pinBlockedHere()) return $why;
     $u = fetchOne('SELECT * FROM admin_users WHERE id=? AND tenant_id=? AND is_active=1', [$userId, $tid]);
     if (!$u || empty($u['pin_hash'])) return 'That person cannot sign in with a PIN.';
     if ($why = tenantSignInBlock(currentTenant())) return $why;

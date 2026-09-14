@@ -223,6 +223,28 @@ function migrateTenancyLocked(array &$log): void {
         addColumn('admin_users', 'technician_id', 'INT DEFAULT NULL', $log);
     }
 
+    // The tills, tablets and screens a salon has registered. The token that
+    // proves a browser is one of them lives only in that browser's cookie;
+    // the database keeps a hash of it.
+    db()->exec("CREATE TABLE IF NOT EXISTS pos_devices (
+        id             INT AUTO_INCREMENT PRIMARY KEY,
+        tenant_id      INT NOT NULL,
+        name           VARCHAR(60) NOT NULL,
+        kind           ENUM('pos','front_desk','kiosk','display','manager') NOT NULL DEFAULT 'pos',
+        token_hash     CHAR(64) NOT NULL,
+        is_active      TINYINT(1) NOT NULL DEFAULT 1,
+        last_seen_at   DATETIME DEFAULT NULL,
+        last_user_id   INT DEFAULT NULL,
+        created_by     INT DEFAULT NULL,
+        created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+        deactivated_at DATETIME DEFAULT NULL,
+        UNIQUE KEY uq_token (token_hash),
+        KEY idx_tenant (tenant_id, is_active),
+        CONSTRAINT fk_pos_devices_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+    ) ENGINE=InnoDB");
+    // Which station rang the sale up — POS #1 or POS #2 — for the reports.
+    addColumn('pos_sales', 'device_id', 'INT DEFAULT NULL', $log);
+
     // Only call it done once sign-in itself can work. On a database whose
     // booking tables have not been imported yet, try again next request.
     if (tableExists('admin_users') && columnExists('admin_users', 'tenant_id')) {

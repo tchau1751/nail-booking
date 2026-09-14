@@ -60,10 +60,16 @@ $navItems  = [
     'lookbook'  => ['🎨', 'Designs',   'lookbook.php'],
     'settings'  => ['⚙️', 'Settings',  'settings.php'],
     'staff'     => ['👤', 'Staff',     'staff.php'],
+    'devices'   => ['📱', 'Devices',   'devices.php'],
 ];
 foreach ($navItems as $k => $v) {
     if (!hasRole($navMin[$k] ?? 'manager')) unset($navItems[$k]);
 }
+// Which station this is, when it is one of the salon's registered devices —
+// with two tills side by side, staff need to see which one they are on.
+$station = deviceFromCookie();
+$stationName = ($station && (int)$station['is_active'] === 1 && (int)$station['tenant_id'] === tenantId())
+    ? $station['name'] : '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -118,6 +124,10 @@ $restActive = isset($navRest[$activeNav]);
     <?php endif; ?>
   </nav>
   <div class="topright">
+    <?php if ($stationName): ?>
+      <span class="station" title="This device"
+            style="font-weight:700;font-size:13px;opacity:.85;white-space:nowrap"><?= e($stationName) ?></span>
+    <?php endif; ?>
     <span class="clock" id="posClock"></span>
     <!-- The signed-in name is not shown at the till — it takes room on the
          tablet's top bar and the guest can see it. It still prints on the

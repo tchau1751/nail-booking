@@ -253,6 +253,26 @@ if (($_GET['export'] ?? '') === 'csv') {
       <?php if (!$byDay): ?><tr><td style="color:var(--ink-soft)">No sales yet.</td></tr><?php endif; ?>
     </table>
   </div>
+
+  <?php
+  // Which till took the money. Sales rung up before devices were registered, or
+  // on a browser that is not one, count under "No station".
+  $byStation = fetchAll("SELECT COALESCE(d.name, 'No station') station, COUNT(*) c, SUM(s.grand_total) tot
+                         FROM pos_sales s
+                         LEFT JOIN pos_devices d ON d.id = s.device_id AND d.tenant_id = s.tenant_id
+                         WHERE s.tenant_id = ? AND s.status IN ('completed','refunded') AND DATE(s.created_at) BETWEEN ? AND ?
+                         GROUP BY station ORDER BY tot DESC", $rng);
+  ?>
+  <div class="card">
+    <h2>By station</h2>
+    <table>
+      <?php foreach ($byStation as $st): ?>
+        <tr><td><?= e($st['station']) ?> <span style="color:var(--ink-soft)"><?= (int)$st['c'] ?> tickets</span></td>
+            <td class="num"><?= money($st['tot']) ?></td></tr>
+      <?php endforeach; ?>
+      <?php if (!$byStation): ?><tr><td style="color:var(--ink-soft)">No sales yet.</td></tr><?php endif; ?>
+    </table>
+  </div>
 </div>
 
 <div class="card">

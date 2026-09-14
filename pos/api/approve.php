@@ -18,6 +18,8 @@ if (!posCsrfValid($_POST['_csrf'] ?? $_GET['_csrf'] ?? null)) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonOut(['error' => 'POST only.'], 405);
+// A manager PIN is still a PIN: once the salon registers devices, it only works on one.
+if ($why = pinBlockedHere()) jsonOut(['error' => $why], 403);
 
 $pin = preg_replace('/\D/', '', (string)($_POST['pin'] ?? ''));
 if (strlen($pin) < PIN_MIN_DIGITS) jsonOut(['error' => 'Enter the manager PIN.'], 400);

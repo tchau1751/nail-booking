@@ -21,7 +21,7 @@ const TENANT_TABLES = [
     'pos_consent_templates', 'pos_checkins', 'pos_tech_shifts', 'pos_gift_cards',
     'pos_gift_card_txns', 'pos_loyalty_txns', 'pos_stamp_txns', 'pos_expenses',
     'pos_campaigns', 'pos_feedback', 'pos_refunds', 'pos_refund_items',
-    'pos_counters', 'pos_polish_brands', 'pos_nail_designs',
+    'pos_counters', 'pos_polish_brands', 'pos_nail_designs', 'pos_devices',
 ];
 
 /**
@@ -29,14 +29,18 @@ const TENANT_TABLES = [
  *   1  tenants, plans, tenant_id everywhere, per-salon keys
  *   2  tenant_id no longer defaults to salon 1
  *   3  five roles; technician logins linked to their technician
+ *   4  registered devices; each sale remembers the station that rang it up
  */
-const TENANCY_VERSION = 3;
+const TENANCY_VERSION = 4;
 
 // Refuse any query on a salon's table that never mentions tenant_id. A missed
 // query then fails in front of whoever is testing it, instead of quietly
 // showing one salon another salon's rows. A developer can switch it off in
 // config.local.php while hunting a bug; production leaves it on.
 defined('TENANT_GUARD') || define('TENANT_GUARD', true);
+
+/** The cookie a registered device carries. Only a hash of its value is stored. */
+const DEVICE_COOKIE = 'pos_device';
 
 final class TenantMissing extends RuntimeException {}
 
@@ -62,11 +66,33 @@ function tenantId(): int {
     if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['tenant_id'])) {
         return (int)$_SESSION['tenant_id'];
     }
+    // A registered till or tablet knows its salon before anyone signs in.
+    $device = deviceFromCookie();
+    if ($device && (int)$device['is_active'] === 1) return (int)$device['tenant_id'];
+
     // One salon on this install means there is nothing to choose between —
     // which is every shop that upgraded from before there were tenants.
     if ($only = soleTenantId()) return $only;
 
     throw new TenantMissing('This page does not know which salon it is for.');
+}
+
+/**
+ * The registered device this browser carries a token for — in any salon, on or
+ * off — or null. Found by the token's hash; the token itself is never stored.
+ */
+function deviceFromCookie(): ?array {
+    static $row = false;
+    if ($row === false) {
+        $row = null;
+        $token = $_COOKIE[DEVICE_COOKIE] ?? '';
+        if (is_string($token) && preg_match('/^[a-f0-9]{64}$/', $token)) {
+            $row = unscoped(function () use ($token) {
+                return fetchOne('SELECT * FROM pos_devices WHERE token_hash=?', [hash('sha256', $token)]);
+            });
+        }
+    }
+    return $row;
 }
 
 /**

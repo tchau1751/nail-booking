@@ -491,12 +491,15 @@ function checkout(array $payments): int {
             ? (int)floor(max(0, $earnBase) * (float)($set['points_per_dollar'] ?? 1))
             : 0;
 
+        // The station is the device this session was signed in on, already
+        // checked to be this salon's and still switched on.
         query("INSERT INTO pos_sales
-                 (tenant_id, sale_no, appointment_id, checkin_id, client_id, customer_name, customer_phone,
+                 (tenant_id, sale_no, device_id, appointment_id, checkin_id, client_id, customer_name, customer_phone,
                   technician_id, cashier_id, subtotal, discount_total, tax_total, tip_total,
                   tip_method, grand_total, paid_total, change_due, points_earned, points_redeemed, note)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [
-            $tid, nextSaleNo(), $c['appointment_id'] ?: null, $c['checkin_id'] ?: null, $c['client_id'] ?: null,
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [
+            $tid, nextSaleNo(), $_SESSION['device_id'] ?? null,
+            $c['appointment_id'] ?: null, $c['checkin_id'] ?: null, $c['client_id'] ?: null,
             $c['customer_name'], $c['customer_phone'], $c['technician_id'] ?: null, $admin['id'] ?? null,
             $t['subtotal'], $t['discount'], $t['tax'], $t['tip'],
             $c['tip_method'] === 'cash' ? 'cash' : 'card',
