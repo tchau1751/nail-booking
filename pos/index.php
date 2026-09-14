@@ -11,15 +11,16 @@ $preload = '';
 if (isset($_GET['checkin'])) $preload = 'load_checkin:' . (int)$_GET['checkin'];
 if (isset($_GET['client']))  $preload = 'attach_client:' . (int)$_GET['client'];
 
-$services    = fetchAll('SELECT * FROM services WHERE is_active=1 ORDER BY display_order, name');
-$products    = fetchAll('SELECT * FROM pos_products WHERE is_active=1 ORDER BY display_order, name');
-$technicians = fetchAll('SELECT id,name FROM technicians WHERE is_active=1 ORDER BY display_order, name');
+$tid         = tenantId();
+$services    = fetchAll('SELECT * FROM services WHERE tenant_id=? AND is_active=1 ORDER BY display_order, name', [$tid]);
+$products    = fetchAll('SELECT * FROM pos_products WHERE tenant_id=? AND is_active=1 ORDER BY display_order, name', [$tid]);
+$technicians = fetchAll('SELECT id,name FROM technicians WHERE tenant_id=? AND is_active=1 ORDER BY display_order, name', [$tid]);
 $today       = date('Y-m-d');
 $appointments = fetchAll(
     "SELECT a.id, a.full_name, a.phone, a.start_time, a.status, s.name AS service_name, s.price
      FROM appointments a JOIN services s ON s.id = a.service_id
-     WHERE a.appointment_date = ? AND a.status IN ('pending','confirmed')
-     ORDER BY a.start_time", [$today]);
+     WHERE a.tenant_id = ? AND a.appointment_date = ? AND a.status IN ('pending','confirmed')
+     ORDER BY a.start_time", [$tid, $today]);
 $waiting = waitingList();
 
 $catalog = [];

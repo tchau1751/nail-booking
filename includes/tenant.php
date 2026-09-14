@@ -24,12 +24,18 @@ const TENANT_TABLES = [
     'pos_counters', 'pos_polish_brands', 'pos_nail_designs',
 ];
 
-/** Raised whenever the tenancy schema learns something new; tenancyBoot() catches up. */
-const TENANCY_VERSION = 1;
+/**
+ * Raised whenever the tenancy schema learns something new; tenancyBoot() catches up.
+ *   1  tenants, plans, tenant_id everywhere, per-salon keys
+ *   2  tenant_id no longer defaults to salon 1
+ */
+const TENANCY_VERSION = 2;
 
-// Refuse any query on a salon's table that never mentions tenant_id. Off until
-// every query in the app has been taught to scope itself.
-defined('TENANT_GUARD') || define('TENANT_GUARD', false);
+// Refuse any query on a salon's table that never mentions tenant_id. A missed
+// query then fails in front of whoever is testing it, instead of quietly
+// showing one salon another salon's rows. A developer can switch it off in
+// config.local.php while hunting a bug; production leaves it on.
+defined('TENANT_GUARD') || define('TENANT_GUARD', true);
 
 final class TenantMissing extends RuntimeException {}
 
@@ -60,6 +66,25 @@ function tenantId(): int {
     if ($only = soleTenantId()) return $only;
 
     throw new TenantMissing('This page does not know which salon it is for.');
+}
+
+/**
+ * For the pages anyone can open — the booking site and its small APIs. The
+ * salon is named in the address (?salon=lovely-nail), the way a booking link
+ * is shared. On an install with one salon the address may leave it out.
+ * Returns the salon and pins the request to it.
+ */
+function publicSalon(?string $slug = null): array {
+    $slug = trim((string)($slug ?? ($_GET['salon'] ?? '')));
+    if ($slug !== '') {
+        $t = tenantBySlug($slug);
+        if (!$t) throw new TenantMissing('That salon could not be found.');
+    } else {
+        $t = tenantFind(tenantId());
+        if (!$t) throw new TenantMissing('That salon could not be found.');
+    }
+    tenantUse((int)$t['id']);
+    return $t;
 }
 
 function soleTenantId(): ?int {
@@ -110,6 +135,21 @@ function tenantSignInBlock(array $tenant): ?string {
         case 'cancelled': return 'This salon\'s account has been closed.';
     }
     return null;
+}
+
+/**
+ * Does this salon own row $id of $table? For an id that arrived from the
+ * browser and is about to be stored, joined on or acted upon.
+ */
+function tenantOwns(string $table, $id): bool {
+    if (!in_array($table, TENANT_TABLES, true)) throw new LogicException($table . ' does not belong to a salon.');
+    $id = (int)$id;
+    return $id > 0 && (bool)fetchOne("SELECT 1 x FROM `$table` WHERE id=? AND tenant_id=?", [$id, tenantId()]);
+}
+
+/** The id when this salon owns it, otherwise null — for optional references like a requested technician. */
+function ownedId(string $table, $id): ?int {
+    return tenantOwns($table, $id) ? (int)$id : null;
 }
 
 /**

@@ -39,6 +39,10 @@ function guardOwnerRole(string $role): void {
         throw new RuntimeException('Only an owner can grant the owner role.');
     }
 }
+/** One of this salon's accounts — never another salon's, whatever id the form sends. */
+function staffFind(int $id): ?array {
+    return fetchOne('SELECT * FROM admin_users WHERE id=? AND tenant_id=?', [$id, tenantId()]);
+}
 /** A till PIN is four to eight digits and must not be a guessable run. */
 function pinProblem(string $pin): ?string {
     if (!preg_match('/^\d{4,8}$/', $pin))          return 'A PIN is 4 to 8 digits.';
@@ -62,70 +66,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($name === '')                                   throw new RuntimeException('Enter their name.');
             if (!filter_var($email, FILTER_VALIDATE_EMAIL))     throw new RuntimeException('That email address doesn\'t look right.');
-            if (fetchOne('SELECT 1 x FROM admin_users WHERE email=?', [$email]))
-                                                                throw new RuntimeException('Someone already signs in with that email.');
+            // The email is how sign-in finds the salon, so it has to be unique
+            // across every salon, not just this one.
+            $taken = unscoped(function () use ($email) {
+                return fetchOne('SELECT 1 x FROM admin_users WHERE email=?', [$email]);
+            });
+            if ($taken)                                         throw new RuntimeException('Someone already signs in with that email.');
             guardOwnerRole($role);
             if ($p = passwordProblem($pw, $name, $email))       throw new RuntimeException($p);
             if ($pw !== ($_POST['password2'] ?? ''))            throw new RuntimeException('The two passwords don\'t match.');
 
-            query('INSERT INTO admin_users (name,email,password_hash,role,is_active) VALUES (?,?,?,?,1)',
-                  [$name, $email, password_hash($pw, PASSWORD_BCRYPT, ['cost' => 12]), $role]);
+            query('INSERT INTO admin_users (tenant_id,name,email,password_hash,role,is_active) VALUES (?,?,?,?,?,1)',
+                  [tenantId(), $name, $email, password_hash($pw, PASSWORD_BCRYPT, ['cost' => 12]), $role]);
             $msg = 'Account created for ' . $name . '.';
             $newLogin = ['name' => $name, 'email' => $email, 'role' => $role];
 
         } elseif ($action === 'password') {
             $id   = (int)$_POST['id'];
-            $user = fetchOne('SELECT * FROM admin_users WHERE id=?', [$id]);
+            $user = staffFind($id);
             if (!$user) throw new RuntimeException('Account not found.');
             guardOwnerTarget($user);
             $pw = (string)$_POST['password'];
             if ($p = passwordProblem($pw, $user['name'], $user['email'])) throw new RuntimeException($p);
             if ($pw !== ($_POST['password2'] ?? ''))                      throw new RuntimeException('The two passwords don\'t match.');
 
-            query('UPDATE admin_users SET password_hash=? WHERE id=?',
-                  [password_hash($pw, PASSWORD_BCRYPT, ['cost' => 12]), $id]);
+            query('UPDATE admin_users SET password_hash=? WHERE id=? AND tenant_id=?',
+                  [password_hash($pw, PASSWORD_BCRYPT, ['cost' => 12]), $id, tenantId()]);
             $msg = 'New password set for ' . $user['name'] . '. Tell them in person, not by text.';
 
         } elseif ($action === 'role') {
             $id = (int)$_POST['id'];
             if ($id === $me) throw new RuntimeException('You can\'t change your own role — ask another owner.');
             $role = in_array($_POST['role'], ['owner','manager','staff'], true) ? $_POST['role'] : 'staff';
+            $user = staffFind($id);
+            if (!$user) throw new RuntimeException('Account not found.');
             // Both ends are guarded: a manager can neither touch an owner's
             // account nor hand the owner role to anybody, including themselves.
-            guardOwnerTarget(fetchOne('SELECT * FROM admin_users WHERE id=?', [$id]));
+            guardOwnerTarget($user);
             guardOwnerRole($role);
-            query('UPDATE admin_users SET role=? WHERE id=?', [$role, $id]);
+            query('UPDATE admin_users SET role=? WHERE id=? AND tenant_id=?', [$role, $id, tenantId()]);
             $msg = 'Role updated.';
 
         } elseif ($action === 'pin') {
             $id   = (int)$_POST['id'];
-            $user = fetchOne('SELECT * FROM admin_users WHERE id=?', [$id]);
+            $user = staffFind($id);
             if (!$user) throw new RuntimeException('Account not found.');
             guardOwnerTarget($user);
             $pin = preg_replace('/\D/', '', (string)($_POST['pin'] ?? ''));
 
             if ($pin === '') {   // an empty box clears it
-                query('UPDATE admin_users SET pin_hash=NULL, pin_fails=0, pin_locked_until=NULL WHERE id=?', [$id]);
+                query('UPDATE admin_users SET pin_hash=NULL, pin_fails=0, pin_locked_until=NULL WHERE id=? AND tenant_id=?',
+                      [$id, tenantId()]);
                 $msg = $user['name'] . ' can no longer sign in with a PIN.';
             } else {
                 if ($p = pinProblem($pin)) throw new RuntimeException($p);
-                query('UPDATE admin_users SET pin_hash=?, pin_fails=0, pin_locked_until=NULL WHERE id=?',
-                      [password_hash($pin, PASSWORD_BCRYPT, ['cost' => 12]), $id]);
+                query('UPDATE admin_users SET pin_hash=?, pin_fails=0, pin_locked_until=NULL WHERE id=? AND tenant_id=?',
+                      [password_hash($pin, PASSWORD_BCRYPT, ['cost' => 12]), $id, tenantId()]);
                 $msg = 'Till PIN set for ' . $user['name'] . '. Tell them in person.';
             }
 
         } elseif ($action === 'toggle') {
             $id = (int)$_POST['id'];
             if ($id === $me) throw new RuntimeException('You can\'t switch off your own account.');
-            $user = fetchOne('SELECT * FROM admin_users WHERE id=?', [$id]);
+            $user = staffFind($id);
             if (!$user) throw new RuntimeException('Account not found.');
             guardOwnerTarget($user);
             // Never leave the salon with no way in.
             if ($user['is_active'] && $user['role'] === 'owner') {
-                $owners = (int)fetchOne("SELECT COUNT(*) n FROM admin_users WHERE role='owner' AND is_active=1")['n'];
+                $owners = (int)fetchOne("SELECT COUNT(*) n FROM admin_users WHERE tenant_id=? AND role='owner' AND is_active=1",
+                                        [tenantId()])['n'];
                 if ($owners <= 1) throw new RuntimeException('That is the only active owner — promote someone else first.');
             }
-            query('UPDATE admin_users SET is_active=? WHERE id=?', [$user['is_active'] ? 0 : 1, $id]);
+            query('UPDATE admin_users SET is_active=? WHERE id=? AND tenant_id=?', [$user['is_active'] ? 0 : 1, $id, tenantId()]);
             $msg = $user['is_active'] ? $user['name'] . ' can no longer sign in.' : $user['name'] . ' can sign in again.';
         }
 
@@ -134,7 +146,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 $msg = $msg ?: ($_GET['m'] ?? '');
 
-$users = fetchAll('SELECT * FROM admin_users ORDER BY is_active DESC, FIELD(role,"owner","manager","staff"), name');
+$users = fetchAll('SELECT * FROM admin_users WHERE tenant_id=?
+                   ORDER BY is_active DESC, FIELD(role,"owner","manager","staff"), name', [tenantId()]);
 $roleNote = [
     'owner'   => 'Everything, and the only role that can create or change another owner',
     'manager' => 'Everything except owner accounts — including logins, PINs and approving discounts',

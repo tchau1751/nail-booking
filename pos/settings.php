@@ -6,11 +6,13 @@ require_once __DIR__ . '/includes/layout_start.php';
 require_once __DIR__ . '/includes/rewards.php';
 
 $msg = ''; $err = '';
+// Every row this page reads or saves is the signed-in salon's own.
+$tid = tenantId();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if (($_POST['action'] ?? '') === 'settings') {
             query('UPDATE pos_settings SET currency_symbol=?, tax_rate=?, tax_label=?, tax_services=?,
-                   receipt_header=?, receipt_footer=?, tip_presets=?, supply_fee_enabled=? WHERE id=1', [
+                   receipt_header=?, receipt_footer=?, tip_presets=?, supply_fee_enabled=? WHERE tenant_id=?', [
                 trim($_POST['currency_symbol']) ?: '$',
                 max(0, (float)$_POST['tax_rate']),
                 trim($_POST['tax_label']) ?: 'Sales Tax',
@@ -19,21 +21,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 trim($_POST['receipt_footer']),
                 preg_replace('/[^0-9,\.]/', '', $_POST['tip_presets']) ?: '15,18,20,25',
                 isset($_POST['supply_fee_enabled']) ? 1 : 0,
+                $tid,
             ]);
             $msg = 'Settings saved.';
         } elseif (($_POST['action'] ?? '') === 'store') {
             query('UPDATE pos_settings SET owner_name=?, owner_email=?, owner_phone=?, license_no=?,
                    kiosk_welcome=?, url_yelp=?, url_google=?, url_facebook=?, url_instagram=?,
-                   theme=? WHERE id=1', [
+                   theme=? WHERE tenant_id=?', [
                 trim($_POST['owner_name']), trim($_POST['owner_email']), trim($_POST['owner_phone']),
                 trim($_POST['license_no']), trim($_POST['kiosk_welcome']),
                 trim($_POST['url_yelp']), trim($_POST['url_google']),
                 trim($_POST['url_facebook']), trim($_POST['url_instagram']),
                 isset(posThemes()[$_POST['theme'] ?? '']) ? $_POST['theme'] : 'black-gold',
+                $tid,
             ]);
             query('UPDATE business_settings SET business_name=?, business_phone=?, business_cell=?,
                    business_email=?, business_address=?, business_city=?, business_state=?,
-                   business_zip=?, timezone=? WHERE id=1', [
+                   business_zip=?, timezone=? WHERE tenant_id=?', [
                 trim($_POST['business_name']), trim($_POST['business_phone']),
                 trim($_POST['business_cell']), trim($_POST['business_email']),
                 trim($_POST['business_address']), trim($_POST['business_city']),
@@ -41,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 in_array($_POST['timezone'] ?? '', timezone_identifiers_list(), true)
                     ? $_POST['timezone']
                     : (settings()['timezone'] ?? 'America/New_York'),
+                $tid,
             ]);
             $msg = 'Store information saved.';
         } elseif (($_POST['action'] ?? '') === 'hours') {
@@ -49,79 +54,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($_POST['open'] ?? [] as $weekday => $_) {
                 $w = (int)$weekday;
                 if ($w < 0 || $w > 6) continue;
-                query('UPDATE business_hours SET is_open=?, start_time=?, end_time=? WHERE weekday=?', [
+                query('UPDATE business_hours SET is_open=?, start_time=?, end_time=? WHERE tenant_id=? AND weekday=?', [
                     empty($_POST['closed'][$w]) ? 1 : 0,
                     $_POST['open'][$w] ?: '09:00',
                     $_POST['close'][$w] ?: '19:00',
-                    $w,
+                    $tid, $w,
                 ]);
             }
             $msg = 'Business hours saved.';
         } elseif (($_POST['action'] ?? '') === 'booking') {
             query('UPDATE business_settings SET slot_interval_minutes=?, booking_notice_hours=?,
                    reminder_hours_before=?, sms_sender=?, twilio_account_sid=?,
-                   twilio_from_number=? WHERE id=1', [
+                   twilio_from_number=? WHERE tenant_id=?', [
                 max(5, min(120, (int)$_POST['slot_interval_minutes'])),
                 max(0, min(168, (int)$_POST['booking_notice_hours'])),
                 max(0, min(168, (int)$_POST['reminder_hours_before'])),
                 trim($_POST['sms_sender']),
                 trim($_POST['twilio_account_sid']),
                 trim($_POST['twilio_from_number']),
+                $tid,
             ]);
             // The auth token is a secret: it is never rendered back into the
             // form, so an empty box means "leave it alone" rather than "clear
             // it". Clearing is its own explicit tick.
             if (isset($_POST['twilio_clear'])) {
-                query("UPDATE business_settings SET twilio_auth_token='' WHERE id=1");
+                query("UPDATE business_settings SET twilio_auth_token='' WHERE tenant_id=?", [$tid]);
             } elseif (trim((string)($_POST['twilio_auth_token'] ?? '')) !== '') {
-                query('UPDATE business_settings SET twilio_auth_token=? WHERE id=1',
-                      [trim($_POST['twilio_auth_token'])]);
+                query('UPDATE business_settings SET twilio_auth_token=? WHERE tenant_id=?',
+                      [trim($_POST['twilio_auth_token']), $tid]);
             }
             $msg = 'Appointment and text settings saved.';
         } elseif (($_POST['action'] ?? '') === 'loyalty') {
             query('UPDATE pos_settings SET loyalty_enabled=?, points_per_dollar=?, point_value_cents=?,
-                   points_min_redeem=?, feedback_enabled=? WHERE id=1', [
+                   points_min_redeem=?, feedback_enabled=? WHERE tenant_id=?', [
                 isset($_POST['loyalty_enabled']) ? 1 : 0,
                 max(0, (float)$_POST['points_per_dollar']),
                 max(0.01, (float)$_POST['point_value_cents']),
                 max(0, (int)$_POST['points_min_redeem']),
                 isset($_POST['feedback_enabled']) ? 1 : 0,
+                $tid,
             ]);
             $msg = 'Rewards settings saved.';
         } elseif (($_POST['action'] ?? '') === 'kiosk') {
             query('UPDATE pos_settings SET kiosk_welcome=?, kiosk_promo_title=?, kiosk_promo_text=?,
                    kiosk_promo_image=?, kiosk_show_wait=?, kiosk_menu_url=?, kiosk_terms=?,
-                   birthday_sms_enabled=?, birthday_sms_text=? WHERE id=1', [
+                   birthday_sms_enabled=?, birthday_sms_text=? WHERE tenant_id=?', [
                 trim($_POST['kiosk_welcome']), trim($_POST['kiosk_promo_title']),
                 trim($_POST['kiosk_promo_text']), trim($_POST['kiosk_promo_image']),
                 isset($_POST['kiosk_show_wait']) ? 1 : 0, trim($_POST['kiosk_menu_url']),
                 trim($_POST['kiosk_terms']),
                 isset($_POST['birthday_sms_enabled']) ? 1 : 0, trim($_POST['birthday_sms_text']),
+                $tid,
             ]);
-            query('UPDATE pos_settings SET public_show_prices=?, public_show_duration=? WHERE id=1', [
+            query('UPDATE pos_settings SET public_show_prices=?, public_show_duration=? WHERE tenant_id=?', [
                 isset($_POST['public_show_prices']) ? 1 : 0,
                 isset($_POST['public_show_duration']) ? 1 : 0,
+                $tid,
             ]);
             $msg = 'Kiosk and birthday settings saved.';
         } elseif (($_POST['action'] ?? '') === 'policy') {
-            query('UPDATE pos_consent_templates SET title=?, body=? WHERE id=?',
-                  [trim($_POST['title']), trim($_POST['body']), (int)$_POST['id']]);
+            query('UPDATE pos_consent_templates SET title=?, body=? WHERE id=? AND tenant_id=?',
+                  [trim($_POST['title']), trim($_POST['body']), (int)$_POST['id'], $tid]);
             $msg = 'Policy updated. Forms already signed keep their original wording.';
         } elseif (($_POST['action'] ?? '') === 'drawer') {
             $kind = in_array($_POST['kind'], ['open','pay_in','pay_out','close'], true) ? $_POST['kind'] : 'pay_in';
-            query('INSERT INTO pos_cash_movements (kind,amount,reason,admin_id) VALUES (?,?,?,?)',
-                  [$kind, abs((float)$_POST['amount']), trim($_POST['reason']), $admin['id'] ?? null]);
+            query('INSERT INTO pos_cash_movements (tenant_id,kind,amount,reason,admin_id) VALUES (?,?,?,?,?)',
+                  [$tid, $kind, abs((float)$_POST['amount']), trim($_POST['reason']), $admin['id'] ?? null]);
             $msg = 'Cash movement recorded.';
         }
     } catch (Throwable $e) { $err = $e->getMessage(); }
 }
 
-$s = fetchOne('SELECT * FROM pos_settings WHERE id=1');
+$s = fetchOne('SELECT * FROM pos_settings WHERE tenant_id=? ORDER BY id LIMIT 1', [$tid]);
 $biz = settings();
 $moves = fetchAll('SELECT m.*, u.name AS who FROM pos_cash_movements m
                    LEFT JOIN admin_users u ON u.id=m.admin_id
-                   ORDER BY m.id DESC LIMIT 20');
-$policies = fetchAll('SELECT * FROM pos_consent_templates ORDER BY id');
+                   WHERE m.tenant_id=?
+                   ORDER BY m.id DESC LIMIT 20', [$tid]);
+$policies = fetchAll('SELECT * FROM pos_consent_templates WHERE tenant_id=? ORDER BY id', [$tid]);
+$hours = fetchAll('SELECT * FROM business_hours WHERE tenant_id=? ORDER BY weekday', [$tid]);
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-err"><?= e($err) ?></div><?php endif; ?>
@@ -215,7 +226,7 @@ $policies = fetchAll('SELECT * FROM pos_consent_templates ORDER BY id');
         <tbody>
         <?php
         $dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        foreach (fetchAll('SELECT * FROM business_hours ORDER BY weekday') as $h):
+        foreach ($hours as $h):
           $w = (int)$h['weekday']; ?>
           <tr>
             <td><strong><?= e($dayNames[$w] ?? $w) ?></strong></td>

@@ -10,25 +10,28 @@ function getAvailableSlots(string $date, int $serviceId, ?int $techId = null): a
     $interval = (int)($s['slot_interval_minutes'] ?? 30);
     $notice   = (int)($s['booking_notice_hours']  ?? 2);
 
+    // Hours, closures, the menu and the diary are all the salon's own.
+    $tid = tenantId();
+
     // 1. Check blocked date
-    $blocked = fetchOne('SELECT id FROM blocked_dates WHERE blocked_date=?', [$date]);
+    $blocked = fetchOne('SELECT id FROM blocked_dates WHERE tenant_id=? AND blocked_date=?', [$tid, $date]);
     if ($blocked) return [];
 
     // 2. Business hours for this weekday
     $dow = (int)date('w', strtotime($date));  // 0=Sun
-    $bh  = fetchOne('SELECT * FROM business_hours WHERE weekday=?', [$dow]);
+    $bh  = fetchOne('SELECT * FROM business_hours WHERE tenant_id=? AND weekday=?', [$tid, $dow]);
     if (!$bh || !$bh['is_open']) return [];
 
     // 3. Service duration
-    $svc = fetchOne('SELECT duration_minutes FROM services WHERE id=? AND is_active=1', [$serviceId]);
+    $svc = fetchOne('SELECT duration_minutes FROM services WHERE id=? AND tenant_id=? AND is_active=1', [$serviceId, $tid]);
     if (!$svc) return [];
     $duration = (int)$svc['duration_minutes'];
 
     // 4. Existing appointments on this date (exclude cancelled)
     $existingQuery = $techId
-        ? 'SELECT start_time,end_time FROM appointments WHERE appointment_date=? AND status!=? AND (technician_id=? OR technician_id IS NULL)'
-        : 'SELECT start_time,end_time FROM appointments WHERE appointment_date=? AND status!=?';
-    $existingParams = $techId ? [$date,'cancelled',$techId] : [$date,'cancelled'];
+        ? 'SELECT start_time,end_time FROM appointments WHERE tenant_id=? AND appointment_date=? AND status!=? AND (technician_id=? OR technician_id IS NULL)'
+        : 'SELECT start_time,end_time FROM appointments WHERE tenant_id=? AND appointment_date=? AND status!=?';
+    $existingParams = $techId ? [$tid,$date,'cancelled',$techId] : [$tid,$date,'cancelled'];
     $existing = fetchAll($existingQuery, $existingParams);
 
     $openTs  = strtotime("{$date} {$bh['start_time']}");

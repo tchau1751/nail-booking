@@ -13,9 +13,9 @@ $rows = fetchAll(
      FROM appointments a
      JOIN services s ON s.id=a.service_id
      LEFT JOIN technicians t ON t.id=a.technician_id
-     WHERE a.appointment_date BETWEEN ? AND ?
+     WHERE a.tenant_id = ? AND a.appointment_date BETWEEN ? AND ?
      ORDER BY a.appointment_date,a.start_time",
-    [$from, $to]
+    [tenantId(), $from, $to]
 );
 
 $statusColors = [
@@ -41,7 +41,8 @@ $events = array_map(function($r) use ($statusColors) {
 }, $rows);
 
 // Also add blocked dates as background events
-$blocked = fetchAll('SELECT blocked_date,reason FROM blocked_dates WHERE blocked_date BETWEEN ? AND ?', [$from,$to]);
+$blocked = fetchAll('SELECT blocked_date,reason FROM blocked_dates WHERE tenant_id=? AND blocked_date BETWEEN ? AND ?',
+                    [tenantId(), $from, $to]);
 foreach ($blocked as $b) {
     $events[] = [
         'title'    => '🚫 ' . ($b['reason'] ?: 'Closed'),

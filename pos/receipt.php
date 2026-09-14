@@ -5,19 +5,20 @@ require_once __DIR__ . '/includes/receipt_text.php';
 requireTillLogin();
 
 $id   = (int)($_GET['id'] ?? 0);
+$tid  = tenantId();
 $sale = fetchOne('SELECT s.*, t.name AS tech_name, u.name AS cashier_name
                   FROM pos_sales s
                   LEFT JOIN technicians t ON t.id = s.technician_id
                   LEFT JOIN admin_users u ON u.id = s.cashier_id
-                  WHERE s.id = ?', [$id]);
+                  WHERE s.id = ? AND s.tenant_id = ?', [$id, $tid]);
 if (!$sale) { http_response_code(404); exit('Sale not found.'); }
 $items    = fetchAll('SELECT i.*, t.name AS item_tech
                      FROM pos_sale_items i
                      LEFT JOIN technicians t ON t.id = i.technician_id
-                     WHERE i.sale_id=? ORDER BY i.id', [$id]);
-$payments = fetchAll('SELECT * FROM pos_payments WHERE sale_id=? ORDER BY id', [$id]);
-$cards    = fetchAll('SELECT * FROM pos_gift_cards WHERE issued_sale_id=? ORDER BY id', [$id]);
-$client   = $sale['client_id'] ? fetchOne('SELECT full_name, points FROM pos_clients WHERE id=?', [$sale['client_id']]) : null;
+                     WHERE i.tenant_id=? AND i.sale_id=? ORDER BY i.id', [$tid, $id]);
+$payments = fetchAll('SELECT * FROM pos_payments WHERE tenant_id=? AND sale_id=? ORDER BY id', [$tid, $id]);
+$cards    = fetchAll('SELECT * FROM pos_gift_cards WHERE tenant_id=? AND issued_sale_id=? ORDER BY id', [$tid, $id]);
+$client   = $sale['client_id'] ? fetchOne('SELECT full_name, points FROM pos_clients WHERE id=? AND tenant_id=?', [$sale['client_id'], $tid]) : null;
 $set      = posSettings();
 $biz      = settings();
 // Plain text for the Star TSP650II, sent via the tablet's till app.

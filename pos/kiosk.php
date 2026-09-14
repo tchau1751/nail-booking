@@ -12,8 +12,8 @@ requireTillLogin();
 
 $set      = posSettings();
 $biz      = settings();
-$services = fetchAll('SELECT id,name,duration_minutes,image_url FROM services WHERE is_active=1 ORDER BY display_order, name');
-$techs    = fetchAll('SELECT id,name FROM technicians WHERE is_active=1 ORDER BY display_order, name');
+$services = fetchAll('SELECT id,name,duration_minutes,image_url FROM services WHERE tenant_id=? AND is_active=1 ORDER BY display_order, name', [tenantId()]);
+$techs    = fetchAll('SELECT id,name FROM technicians WHERE tenant_id=? AND is_active=1 ORDER BY display_order, name', [tenantId()]);
 $menuUrl  = $set['kiosk_menu_url'] ?: APP_URL;
 $qrFile   = __DIR__ . '/assets/menu-qr.png';
 $hasQr    = is_file($qrFile);

@@ -8,11 +8,17 @@
 //
 //  The email + password login is still there for anything a PIN
 //  should not open; the link at the bottom goes to it.
+//
+//  A PIN only means something inside one salon. With several
+//  salons on the server, a tablet that has not been told its salon
+//  lists nobody and points at the email sign-in, which finds the
+//  salon from the person.
 // ============================================================
 require_once __DIR__ . '/includes/pos.php';
 
 startSecureSession();
 $err = '';
+$noSalon = 'This tablet does not know which salon it belongs to yet. Sign in with your email and password.';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id  = (int)($_POST['user_id'] ?? 0);
@@ -20,7 +26,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$id || strlen($pin) < PIN_MIN_DIGITS) {
         $err = 'Pick your name and enter your PIN.';
     } else {
-        $err = loginByPin($id, $pin) ?? '';
+        try {
+            $err = loginByPin($id, $pin) ?? '';
+        } catch (TenantMissing $e) {
+            $err = $noSalon;
+        }
         if ($err === '') {
             header('Location: ' . BASE_PATH . '/pos/');
             exit;
@@ -30,8 +40,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if (isLoggedIn()) { header('Location: ' . BASE_PATH . '/pos/'); exit; }
 
-$people = pinUsers();
-$salon  = settings()['business_name'] ?? 'Nail Salon';
+$people = []; $salon = 'Nail Salon'; $theme = 'black-gold'; $salonKnown = true;
+try {
+    $people = pinUsers();
+    $salon  = settings()['business_name'] ?? 'Nail Salon';
+    $theme  = posTheme();
+} catch (TenantMissing $e) {
+    $salonKnown = false;
+    $err = $err ?: $noSalon;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -59,7 +76,7 @@ $salon  = settings()['business_name'] ?? 'Nail Salon';
   .foot{margin-top:14px;text-align:center;font-size:13px;color:var(--ink-soft);}
 </style>
 </head>
-<body data-theme="<?= e(posTheme()) ?>">
+<body data-theme="<?= e($theme) ?>">
 <form class="signin" method="post" id="pinForm">
   <h1>💎 <?= e($salon) ?></h1>
   <div class="sub">Tap your name, then your PIN.</div>
@@ -67,8 +84,10 @@ $salon  = settings()['business_name'] ?? 'Nail Salon';
   <?php if ($err): ?><div class="err"><?= e($err) ?></div><?php endif; ?>
 
   <?php if (!$people): ?>
-    <div class="err">No one has a till PIN yet. Sign in with an email and password,
-      then set PINs under <b>Staff</b>.</div>
+    <?php if ($salonKnown): ?>
+      <div class="err">No one has a till PIN yet. Sign in with an email and password,
+        then set PINs under <b>Staff</b>.</div>
+    <?php endif; ?>
   <?php else: ?>
     <div class="people" id="people">
       <?php foreach ($people as $i => $p): ?>

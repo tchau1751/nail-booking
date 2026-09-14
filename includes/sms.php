@@ -53,8 +53,8 @@ function sendSMS(string $toNumber, string $message, ?int $appointmentId = null, 
 
 function logSMS(?int $apptId, string $to, string $msg, string $type, string $status, string $sid): void {
     query(
-        'INSERT INTO sms_log (appointment_id,to_number,message,type,status,provider_id) VALUES (?,?,?,?,?,?)',
-        [$apptId, $to, $msg, $type, $status, $sid]
+        'INSERT INTO sms_log (tenant_id,appointment_id,to_number,message,type,status,provider_id) VALUES (?,?,?,?,?,?,?)',
+        [tenantId(), $apptId, $to, $msg, $type, $status, $sid]
     );
 }
 

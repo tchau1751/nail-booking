@@ -9,12 +9,13 @@ $msg = ''; $err = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'rates') {
     try {
         foreach ($_POST['commission'] ?? [] as $techId => $rate) {
-            query('UPDATE technicians SET commission_rate=?, pay_type=?, hourly_rate=?, supply_fee_rate=? WHERE id=?', [
+            query('UPDATE technicians SET commission_rate=?, pay_type=?, hourly_rate=?, supply_fee_rate=?
+                   WHERE id=? AND tenant_id=?', [
                 max(0, min(100, (float)$rate)),
                 in_array($_POST['pay_type'][$techId] ?? '', ['commission','booth','hourly'], true) ? $_POST['pay_type'][$techId] : 'commission',
                 max(0, (float)($_POST['hourly'][$techId] ?? 0)),
                 max(0, min(100, (float)($_POST['supply'][$techId] ?? 0))),
-                (int)$techId,
+                (int)$techId, tenantId(),
             ]);
         }
         $msg = 'Pay rates saved.';
@@ -56,25 +57,25 @@ $rows = fetchAll(
          FROM pos_sale_items i
          JOIN pos_sales s ON s.id = i.sale_id
          LEFT JOIN (SELECT sale_item_id, SUM(amount) amount, SUM(tip) tip
-                      FROM pos_refund_items GROUP BY sale_item_id) rf
+                      FROM pos_refund_items WHERE tenant_id = ? GROUP BY sale_item_id) rf
                 ON rf.sale_item_id = i.id
-         WHERE s.status IN ('completed','refunded') AND DATE(s.created_at) BETWEEN ? AND ?
+         WHERE s.tenant_id = ? AND s.status IN ('completed','refunded') AND DATE(s.created_at) BETWEEN ? AND ?
          GROUP BY i.technician_id
      ) r ON r.technician_id = t.id
-     WHERE t.is_active = 1
-     ORDER BY t.display_order, t.name", $rng);
+     WHERE t.tenant_id = ? AND t.is_active = 1
+     ORDER BY t.display_order, t.name", [tenantId(), tenantId(), $from, $to, tenantId()]);
 
 $hours = [];
 foreach (fetchAll('SELECT technician_id,
                      COALESCE(SUM(TIMESTAMPDIFF(MINUTE, clock_in, COALESCE(clock_out, NOW()))),0)/60 h
-                   FROM pos_tech_shifts WHERE shift_date BETWEEN ? AND ?
-                   GROUP BY technician_id', $rng) as $h) {
+                   FROM pos_tech_shifts WHERE tenant_id = ? AND shift_date BETWEEN ? AND ?
+                   GROUP BY technician_id', [tenantId(), $from, $to]) as $h) {
     $hours[(int)$h['technician_id']] = (float)$h['h'];
 }
 $turns = [];
 foreach (fetchAll("SELECT assigned_tech_id, COALESCE(SUM(turn_value),0) v FROM pos_checkins
-                   WHERE status IN ('in_service','done') AND DATE(checked_in_at) BETWEEN ? AND ?
-                   GROUP BY assigned_tech_id", $rng) as $t) {
+                   WHERE tenant_id = ? AND status IN ('in_service','done') AND DATE(checked_in_at) BETWEEN ? AND ?
+                   GROUP BY assigned_tech_id", [tenantId(), $from, $to]) as $t) {
     $turns[(int)$t['assigned_tech_id']] = (float)$t['v'];
 }
 

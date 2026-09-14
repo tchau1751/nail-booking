@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reque
         foreach ($ids as $fid) {
             $f = fetchOne('SELECT f.*, c.full_name, c.phone, c.marketing_opt_in
                            FROM pos_feedback f JOIN pos_clients c ON c.id=f.client_id
-                           WHERE f.id=? AND f.responded_at IS NULL', [$fid]);
+                           WHERE f.id=? AND f.tenant_id=? AND f.responded_at IS NULL', [$fid, tenantId()]);
             if (!$f || !$f['phone']) { $skipped++; continue; }
             $link = APP_URL . '/pos/review.php?t=' . $f['token'];
             $body = 'Hi ' . explode(' ', $f['full_name'])[0] . '! Thanks for visiting '
@@ -29,30 +29,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reque
 
 $from = $_GET['from'] ?? date('Y-m-01');
 $to   = $_GET['to']   ?? date('Y-m-d');
-$rng  = [$from, $to];
+$rng  = [tenantId(), $from, $to];
 
 $stats = fetchOne('SELECT COUNT(*) requested,
                           COUNT(rating) answered,
                           AVG(rating) avg_rating,
                           SUM(CASE WHEN rating <= 3 THEN 1 ELSE 0 END) unhappy
-                   FROM pos_feedback WHERE DATE(requested_at) BETWEEN ? AND ?', $rng);
+                   FROM pos_feedback WHERE tenant_id=? AND DATE(requested_at) BETWEEN ? AND ?', $rng);
 
 $byTech = fetchAll('SELECT COALESCE(t.name,"Unassigned") tech, COUNT(f.rating) n, AVG(f.rating) avg_rating
                     FROM pos_feedback f LEFT JOIN technicians t ON t.id=f.technician_id
-                    WHERE f.rating IS NOT NULL AND DATE(f.requested_at) BETWEEN ? AND ?
+                    WHERE f.tenant_id=? AND f.rating IS NOT NULL AND DATE(f.requested_at) BETWEEN ? AND ?
                     GROUP BY tech ORDER BY avg_rating DESC', $rng);
 
 $responses = fetchAll('SELECT f.*, c.full_name, c.phone, t.name AS tech_name
                        FROM pos_feedback f
                        LEFT JOIN pos_clients c ON c.id=f.client_id
                        LEFT JOIN technicians t ON t.id=f.technician_id
-                       WHERE f.rating IS NOT NULL AND DATE(f.requested_at) BETWEEN ? AND ?
+                       WHERE f.tenant_id=? AND f.rating IS NOT NULL AND DATE(f.requested_at) BETWEEN ? AND ?
                        ORDER BY f.responded_at DESC LIMIT 100', $rng);
 
 $pending = fetchAll('SELECT f.*, c.full_name, c.phone
                      FROM pos_feedback f JOIN pos_clients c ON c.id=f.client_id
-                     WHERE f.responded_at IS NULL AND c.phone <> ""
-                     ORDER BY f.id DESC LIMIT 50');
+                     WHERE f.tenant_id=? AND f.responded_at IS NULL AND c.phone <> ""
+                     ORDER BY f.id DESC LIMIT 50', [tenantId()]);
 
 $rate = (int)$stats['requested'] > 0 ? round((int)$stats['answered'] / (int)$stats['requested'] * 100) : 0;
 ?>

@@ -26,9 +26,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg = 'Reloaded — new balance ' . money($bal) . '.';
                 break;
             case 'void':
-                $card = fetchOne('SELECT * FROM pos_gift_cards WHERE id=?', [(int)$_POST['id']]);
-                query("UPDATE pos_gift_cards SET status='void', balance=0 WHERE id=?", [(int)$_POST['id']]);
-                giftCardLog((int)$_POST['id'], 'void', -(float)$card['balance'], 0);
+                $card = fetchOne('SELECT * FROM pos_gift_cards WHERE id=? AND tenant_id=?', [(int)$_POST['id'], tenantId()]);
+                if (!$card) throw new RuntimeException('Gift card not found.');
+                query("UPDATE pos_gift_cards SET status='void', balance=0 WHERE id=? AND tenant_id=?", [(int)$card['id'], tenantId()]);
+                giftCardLog((int)$card['id'], 'void', -(float)$card['balance'], 0);
                 $msg = 'Card voided.';
                 break;
         }
@@ -39,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $msg = $msg ?: ($_GET['m'] ?? '');
 
 $q = trim($_GET['q'] ?? '');
-$args = []; $where = '1=1';
+$args = [tenantId()]; $where = 'g.tenant_id=?';
 if ($q !== '') { $where .= ' AND (g.code LIKE ? OR g.recipient LIKE ?)'; array_push($args, "%$q%", "%$q%"); }
 
 $cards = fetchAll("SELECT g.*, c.full_name AS client_name FROM pos_gift_cards g
@@ -47,11 +48,11 @@ $cards = fetchAll("SELECT g.*, c.full_name AS client_name FROM pos_gift_cards g
                    WHERE $where ORDER BY g.id DESC LIMIT 200", $args);
 $sum = fetchOne("SELECT COUNT(*) n, COALESCE(SUM(balance),0) bal,
                         COALESCE(SUM(CASE WHEN status='active' THEN 1 END),0) active
-                 FROM pos_gift_cards");
-$sold = fetchOne("SELECT COALESCE(SUM(amount),0) v FROM pos_gift_card_txns WHERE type IN ('issue','reload')");
-$used = fetchOne("SELECT COALESCE(SUM(amount),0) v FROM pos_gift_card_txns WHERE type='redeem'");
-$detail = fetchOne('SELECT * FROM pos_gift_cards WHERE id=?', [(int)($_GET['card'] ?? 0)]);
-$txns = $detail ? fetchAll('SELECT * FROM pos_gift_card_txns WHERE gift_card_id=? ORDER BY id DESC', [$detail['id']]) : [];
+                 FROM pos_gift_cards WHERE tenant_id=?", [tenantId()]);
+$sold = fetchOne("SELECT COALESCE(SUM(amount),0) v FROM pos_gift_card_txns WHERE tenant_id=? AND type IN ('issue','reload')", [tenantId()]);
+$used = fetchOne("SELECT COALESCE(SUM(amount),0) v FROM pos_gift_card_txns WHERE tenant_id=? AND type='redeem'", [tenantId()]);
+$detail = fetchOne('SELECT * FROM pos_gift_cards WHERE id=? AND tenant_id=?', [(int)($_GET['card'] ?? 0), tenantId()]);
+$txns = $detail ? fetchAll('SELECT * FROM pos_gift_card_txns WHERE tenant_id=? AND gift_card_id=? ORDER BY id DESC', [tenantId(), $detail['id']]) : [];
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-err"><?= e($err) ?></div><?php endif; ?>

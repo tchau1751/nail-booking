@@ -21,10 +21,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg = 'Queue updated.';
                 break;
             case 'clock':
-                $tid  = (int)$_POST['tech_id'];
-                $who  = fetchOne('SELECT name FROM technicians WHERE id=?', [$tid])['name'] ?? 'Technician';
-                if ($_POST['dir'] === 'in') { clockIn($tid);  $msg = $who . ' is on the floor.'; }
-                else                        { clockOut($tid); $msg = $who . ' has clocked out.'; }
+                $techId = (int)$_POST['tech_id'];
+                $who    = fetchOne('SELECT name FROM technicians WHERE id=? AND tenant_id=?', [$techId, tenantId()])['name'] ?? 'Technician';
+                if ($_POST['dir'] === 'in') { clockIn($techId);  $msg = $who . ' is on the floor.'; }
+                else                        { clockOut($techId); $msg = $who . ' has clocked out.'; }
                 break;
         }
         // Redirect after POST so a refresh doesn't re-submit.
@@ -36,12 +36,12 @@ $msg = $msg ?: ($_GET['m'] ?? '');
 
 $board    = turnsBoard();
 $waiting  = waitingList();
-$services = fetchAll('SELECT id,name,turn_value FROM services WHERE is_active=1 ORDER BY display_order, name');
+$services = fetchAll('SELECT id,name,turn_value FROM services WHERE tenant_id=? AND is_active=1 ORDER BY display_order, name', [tenantId()]);
 $onFloor  = array_values(array_filter($board, function ($t) { return $t['on_floor']; }));
 $totalTurns = array_sum(array_column($board, 'turns'));
 // Baseline for the online-booking alert poll below: only appointments
 // booked after this counts as "new" the first time this page loads.
-$latestApptId = (int)(fetchOne('SELECT MAX(id) m FROM appointments')['m'] ?? 0);
+$latestApptId = (int)(fetchOne('SELECT MAX(id) m FROM appointments WHERE tenant_id=?', [tenantId()])['m'] ?? 0);
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-err"><?= e($err) ?></div><?php endif; ?>

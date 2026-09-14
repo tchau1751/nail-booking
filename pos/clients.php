@@ -24,8 +24,8 @@ $order = [
     'points' => 'points DESC',
 ][$sort] ?? 'last_visit DESC';
 
-$args = [];
-$where = 'is_active=1';
+$args = [tenantId()];
+$where = 'tenant_id=? AND is_active=1';
 if ($q !== '') {
     $where .= ' AND (full_name LIKE ? OR phone LIKE ? OR email LIKE ?)';
     $digits = normalisePhone($q);
@@ -33,7 +33,7 @@ if ($q !== '') {
 }
 $clients = fetchAll("SELECT * FROM pos_clients WHERE $where ORDER BY $order LIMIT 300", $args);
 $stats = fetchOne('SELECT COUNT(*) c, COALESCE(SUM(points),0) p, COALESCE(SUM(total_spend),0) s
-                   FROM pos_clients WHERE is_active=1');
+                   FROM pos_clients WHERE tenant_id=? AND is_active=1', [tenantId()]);
 ?>
 <?php if ($err): ?><div class="alert alert-err"><?= e($err) ?></div><?php endif; ?>
 

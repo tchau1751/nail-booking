@@ -8,8 +8,9 @@ $msg = ''; $err = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if (($_POST['action'] ?? '') === 'add') {
-            query('INSERT INTO pos_expenses (expense_date, category, description, amount, admin_id)
-                   VALUES (?,?,?,?,?)', [
+            query('INSERT INTO pos_expenses (tenant_id, expense_date, category, description, amount, admin_id)
+                   VALUES (?,?,?,?,?,?)', [
+                tenantId(),
                 $_POST['expense_date'] ?: date('Y-m-d'),
                 trim($_POST['category']) ?: 'Supplies',
                 trim($_POST['description']),
@@ -18,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             $msg = 'Expense recorded.';
         } elseif (($_POST['action'] ?? '') === 'delete') {
-            query('DELETE FROM pos_expenses WHERE id=?', [(int)$_POST['id']]);
+            query('DELETE FROM pos_expenses WHERE id=? AND tenant_id=?', [(int)$_POST['id'], tenantId()]);
             $msg = 'Expense deleted.';
         }
         header('Location: ' . BASE_PATH . '/pos/expenses.php?m=' . urlencode($msg));
@@ -31,10 +32,11 @@ $from = $_GET['from'] ?? date('Y-m-01');
 $to   = $_GET['to']   ?? date('Y-m-t');
 $rows = fetchAll('SELECT e.*, u.name AS who FROM pos_expenses e
                   LEFT JOIN admin_users u ON u.id=e.admin_id
-                  WHERE e.expense_date BETWEEN ? AND ?
-                  ORDER BY e.expense_date DESC, e.id DESC', [$from, $to]);
+                  WHERE e.tenant_id = ? AND e.expense_date BETWEEN ? AND ?
+                  ORDER BY e.expense_date DESC, e.id DESC', [tenantId(), $from, $to]);
 $byCat = fetchAll('SELECT category, SUM(amount) v FROM pos_expenses
-                   WHERE expense_date BETWEEN ? AND ? GROUP BY category ORDER BY v DESC', [$from, $to]);
+                   WHERE tenant_id = ? AND expense_date BETWEEN ? AND ? GROUP BY category ORDER BY v DESC',
+                  [tenantId(), $from, $to]);
 $total = array_sum(array_column($rows, 'amount'));
 $categories = ['Supplies','Rent','Utilities','Payroll','Marketing','Equipment','Licences & fees','Insurance','Other'];
 ?>

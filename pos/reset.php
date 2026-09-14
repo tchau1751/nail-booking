@@ -48,7 +48,7 @@ try {
     $err = $e->getMessage();
 }
 
-$totalSales = (int)fetchOne('SELECT COUNT(*) v FROM pos_sales')['v'];
+$totalSales = (int)fetchOne('SELECT COUNT(*) v FROM pos_sales WHERE tenant_id=?', [tenantId()])['v'];
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-err"><?= e($err) ?></div><?php endif; ?>

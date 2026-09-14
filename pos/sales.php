@@ -14,8 +14,8 @@ $from = $_GET['from'] ?? date('Y-m-d');
 $to   = $_GET['to']   ?? date('Y-m-d');
 $q    = trim($_GET['q'] ?? '');
 
-$where = ['DATE(s.created_at) BETWEEN ? AND ?'];
-$args  = [$from, $to];
+$where = ['s.tenant_id = ?', 'DATE(s.created_at) BETWEEN ? AND ?'];
+$args  = [tenantId(), $from, $to];
 if ($q !== '') {
     $where[] = '(s.sale_no LIKE ? OR s.customer_name LIKE ? OR s.customer_phone LIKE ?)';
     array_push($args, "%$q%", "%$q%", "%$q%");

@@ -3,6 +3,9 @@
 //  Kiosk endpoints: look a guest up by phone, report the wait,
 //  and check them in. Deliberately narrow — this is the one
 //  screen a customer can touch, so it can do nothing else.
+//
+//  The kiosk tablet is signed in to one salon, so a phone number
+//  typed here only ever finds that salon's client.
 // ============================================================
 require_once __DIR__ . '/../includes/salon.php';
 require_once __DIR__ . '/../includes/rewards.php';
@@ -13,6 +16,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !posCsrfValid($_POST['_csrf'] ?? nu
     jsonOut(['error' => 'This tablet was signed out — ask a manager to sign in again.'], 419);
 }
 
+/** Is this guest already in today's queue? */
+function alreadyQueued(int $clientId): bool {
+    return (bool)fetchOne("SELECT id FROM pos_checkins
+                           WHERE tenant_id=? AND client_id=? AND status IN ('waiting','in_service')
+                             AND DATE(checked_in_at)=CURDATE()", [tenantId(), $clientId]);
+}
+
 /**
  * How long the next walk-in is likely to wait.
  * Queue length times the average service, divided across whoever is
@@ -20,14 +30,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !posCsrfValid($_POST['_csrf'] ?? nu
  */
 function waitEstimate(): array {
     $waiting = (int)(fetchOne("SELECT COUNT(*) n FROM pos_checkins
-                               WHERE status='waiting' AND DATE(checked_in_at)=CURDATE()")['n'] ?? 0);
+                               WHERE tenant_id=? AND status='waiting' AND DATE(checked_in_at)=CURDATE()",
+                              [tenantId()])['n'] ?? 0);
     $board   = turnsBoard();
     $onFloor = 0; $free = 0;
     foreach ($board as $t) {
         if ($t['on_floor']) $onFloor++;
         if ($t['available']) $free++;
     }
-    $avg = (float)(fetchOne('SELECT AVG(duration_minutes) a FROM services WHERE is_active=1')['a'] ?? 45);
+    $avg = (float)(fetchOne('SELECT AVG(duration_minutes) a FROM services WHERE tenant_id=? AND is_active=1',
+                            [tenantId()])['a'] ?? 45);
     $avg = $avg > 0 ? $avg : 45;
 
     if ($waiting === 0 && $free > 0) {
@@ -54,12 +66,6 @@ try {
             if (strlen($digits) < 7) jsonOut(['error' => 'Please enter your full mobile number.'], 422);
 
             $client = clientByPhone($digits);
-            $already = null;
-            if ($client) {
-                $already = fetchOne("SELECT id FROM pos_checkins
-                                     WHERE client_id=? AND status IN ('waiting','in_service')
-                                       AND DATE(checked_in_at)=CURDATE()", [$client['id']]);
-            }
             if (!$client) {
                 jsonOut(['ok' => true, 'known' => false, 'phone' => $digits]);
             }
@@ -79,7 +85,7 @@ try {
                     'has_reward' => $card['has_reward'],
                     'reward'     => $card['reward'],
                 ],
-                'already_here' => (bool)$already,
+                'already_here' => alreadyQueued((int)$client['id']),
             ]);
 
         case 'checkin':
@@ -95,14 +101,9 @@ try {
             // Don't let an impatient tap put the same guest in the queue twice.
             if ($digits !== '') {
                 $client = clientByPhone($digits);
-                if ($client) {
-                    $dupe = fetchOne("SELECT id FROM pos_checkins
-                                      WHERE client_id=? AND status IN ('waiting','in_service')
-                                        AND DATE(checked_in_at)=CURDATE()", [$client['id']]);
-                    if ($dupe) {
-                        jsonOut(['ok' => true, 'duplicate' => true, 'first_name' => explode(' ', $name)[0]]
-                                + waitEstimate());
-                    }
+                if ($client && alreadyQueued((int)$client['id'])) {
+                    jsonOut(['ok' => true, 'duplicate' => true, 'first_name' => explode(' ', $name)[0]]
+                            + waitEstimate());
                 }
             }
 
@@ -123,8 +124,8 @@ try {
                 $cl = clientByPhone($digits);
                 if ($cl && empty($cl['birthday'])) {
                     if (checkdate($mo, $dy, 2000)) {
-                        query('UPDATE pos_clients SET birthday=? WHERE id=?',
-                              [sprintf('1900-%02d-%02d', $mo, $dy), $cl['id']]);
+                        query('UPDATE pos_clients SET birthday=? WHERE id=? AND tenant_id=?',
+                              [sprintf('1900-%02d-%02d', $mo, $dy), $cl['id'], tenantId()]);
                     }
                 }
             }
@@ -132,10 +133,10 @@ try {
             $row   = fetchOne('SELECT c.*, cl.points, cl.stamps, cl.rewards_earned, cl.rewards_redeemed
                                FROM pos_checkins c
                                LEFT JOIN pos_clients cl ON cl.id = c.client_id
-                               WHERE c.id=?', [$id]);
+                               WHERE c.id=? AND c.tenant_id=?', [$id, tenantId()]);
             $ahead = (int)(fetchOne("SELECT COUNT(*) n FROM pos_checkins
-                                     WHERE status='waiting' AND DATE(checked_in_at)=CURDATE() AND id<>?",
-                                    [$id])['n'] ?? 0);
+                                     WHERE tenant_id=? AND status='waiting' AND DATE(checked_in_at)=CURDATE() AND id<>?",
+                                    [tenantId(), $id])['n'] ?? 0);
             $card = $row['client_id'] ? stampCard($row) : null;
 
             jsonOut([

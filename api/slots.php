@@ -4,6 +4,9 @@ header('Access-Control-Allow-Origin: *');
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/slots.php';
 
+try { publicSalon(); }
+catch (TenantMissing $e) { echo json_encode(['success'=>false,'error'=>$e->getMessage()]); exit; }
+
 $date      = $_GET['date']       ?? '';
 $serviceId = (int)($_GET['service_id'] ?? 0);
 $techId    = ($_GET['technician_id'] ?? '') !== '' ? (int)$_GET['technician_id'] : null;

@@ -6,6 +6,16 @@
 
 const BP = window.BASE_PATH || '';
 
+// Which salon this page books for, injected by index.php. Every call to the
+// booking API names it, so one server can carry many salons' booking pages.
+const SALON = window.SALON || '';
+function api(file, params = {}) {
+  const q = new URLSearchParams(params);
+  if (SALON) q.set('salon', SALON);
+  const s = q.toString();
+  return `${BP}/api/${file}${s ? '?' + s : ''}`;
+}
+
 // Price and appointment length are hidden by default: many salons quote in
 // person because the final price depends on length, art and repairs.
 // Both are switched on or off in POS -> Settings.
@@ -72,7 +82,7 @@ function setStepUI(n) {
 // ── Step 1: Load services ────────────────────────────────────
 async function initServices() {
   try {
-    const res  = await fetch(`${BP}/api/services.php`);
+    const res  = await fetch(api('services.php'));
     const json = await res.json();
     state.services = json.data || [];
 
@@ -164,9 +174,9 @@ async function loadSlots(iso) {
   sec.style.display = 'block';
   grid.innerHTML = '<div class="slot-loading">⏳ Checking availability…</div>';
   try {
-    let url = `${BP}/api/slots.php?date=${iso}&service_id=${state.service.id}`;
-    if (state.technician) url += `&technician_id=${state.technician}`;
-    const json = await (await fetch(url)).json();
+    const params = { date: iso, service_id: state.service.id };
+    if (state.technician) params.technician_id = state.technician;
+    const json = await (await fetch(api('slots.php', params))).json();
     const slots = json.data || [];
     grid.innerHTML = slots.length === 0
       ? '<p style="color:rgba(58,42,36,.5);font-size:13px">No available times on this date. Please try another day.</p>'
@@ -188,7 +198,7 @@ async function loadTechnicians() {
   const sec = qs('techSection'); const wrap = qs('techChoices');
   if (!sec || !wrap || !state.service) return;
   try {
-    const json = await (await fetch(`${BP}/api/technicians.php?service_id=${state.service.id}`)).json();
+    const json = await (await fetch(api('technicians.php', { service_id: state.service.id }))).json();
     state.technicians = json.data || [];
     if (!state.technicians.length) { sec.style.display = 'none'; return; }
     sec.style.display = 'block';
@@ -246,7 +256,7 @@ async function submitBooking() {
   if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
 
   try {
-    const res  = await fetch(`${BP}/api/book.php`, {
+    const res  = await fetch(api('book.php'), {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

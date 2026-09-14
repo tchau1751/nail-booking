@@ -16,14 +16,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'refun
             (string)($_POST['reason'] ?? ''),
             isset($_POST['with_tip'])
         );
-        $done = fetchOne('SELECT * FROM pos_refunds WHERE id=?', [$refundId]);
+        $done = fetchOne('SELECT * FROM pos_refunds WHERE id=? AND tenant_id=?', [$refundId, tenantId()]);
         $msg  = 'Refund ' . $done['refund_no'] . ' recorded — ' . money($done['total']) . ' back to the guest.';
     } catch (Throwable $e) {
         $err = $e->getMessage();
     }
 }
 
-$sale = $saleId ? fetchOne('SELECT * FROM pos_sales WHERE id=?', [$saleId]) : null;
+$sale = $saleId ? fetchOne('SELECT * FROM pos_sales WHERE id=? AND tenant_id=?', [$saleId, tenantId()]) : null;
 if (!$sale) {
     echo '<div class="alert alert-err">That sale could not be found.</div>';
     echo '<a class="btn" href="' . BASE_PATH . '/pos/sales.php">Back to sales</a>';
@@ -34,7 +34,7 @@ if (!$sale) {
 $lines    = refundableLines($saleId);
 $previous = fetchAll('SELECT r.*, u.name AS who FROM pos_refunds r
                       LEFT JOIN admin_users u ON u.id = r.admin_id
-                      WHERE r.sale_id=? ORDER BY r.id DESC', [$saleId]);
+                      WHERE r.tenant_id=? AND r.sale_id=? ORDER BY r.id DESC', [tenantId(), $saleId]);
 $anyLeft  = false;
 foreach ($lines as $l) {
     if ((int)$l['left_qty'] > 0 && $l['item_type'] !== 'giftcard') $anyLeft = true;

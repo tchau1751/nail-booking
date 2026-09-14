@@ -10,27 +10,15 @@ $activeNav    = '';
 ob_start();
 require_once __DIR__ . '/includes/layout_start.php';
 
-$pdo = get_db();
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
 function h($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 
 $err = '';
 $rows = [];
-$tbl  = null;
-
-foreach (['sms_log', 'sms_logs', 'message_log'] as $t) {
-    try { $pdo->query("SELECT 1 FROM `$t` LIMIT 1"); $tbl = $t; break; }
-    catch (Throwable $e) { /* try next */ }
-}
-
-if (!$tbl) {
-    $err = 'No sms_log table found in this database.';
-} else {
-    try {
-        $rows = $pdo->query("SELECT * FROM `$tbl` ORDER BY 1 DESC LIMIT 40")->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Throwable $e) { $err = 'Query failed: ' . $e->getMessage(); }
-}
+$tbl  = 'sms_log';
+try {
+    // The log holds every salon's texts; this page shows the signed-in salon's.
+    $rows = fetchAll('SELECT * FROM sms_log WHERE tenant_id=? ORDER BY id DESC LIMIT 40', [tenantId()]);
+} catch (Throwable $e) { $err = 'Query failed: ' . $e->getMessage(); }
 
 /* tally statuses so the answer is obvious at a glance */
 $tally = [];

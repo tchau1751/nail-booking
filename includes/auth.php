@@ -89,6 +89,11 @@ function requireRole(string $atLeast): void {
 function signIn(array $user): void {
     startSecureSession();
     session_regenerate_id(true);
+    // Nothing from another salon rides along into this one: open tickets, a
+    // manager's approval, a half-filled form.
+    if (isset($_SESSION['tenant_id']) && (int)$_SESSION['tenant_id'] !== (int)$user['tenant_id']) {
+        $_SESSION = [];
+    }
     $_SESSION['admin_id']   = $user['id'];
     $_SESSION['admin_name'] = $user['name'];
     $_SESSION['admin_role'] = $user['role'];

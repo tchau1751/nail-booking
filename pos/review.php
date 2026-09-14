@@ -3,17 +3,23 @@
 //  Public feedback page. The guest opens this from a text on
 //  their own phone, so there is no login — the random token is
 //  the only key, and it reveals nothing but a first name.
+//
+//  The token also says which salon sent it: that salon, and only
+//  that salon, is who this page speaks for.
 // ============================================================
 require_once __DIR__ . '/includes/pos.php';
 
 $token = preg_replace('/[^a-f0-9]/', '', $_GET['t'] ?? '');
 $row   = strlen($token) === 32
-    ? fetchOne('SELECT f.*, c.full_name, t.name AS tech_name
-                FROM pos_feedback f
-                LEFT JOIN pos_clients c ON c.id=f.client_id
-                LEFT JOIN technicians t ON t.id=f.technician_id
-                WHERE f.token=?', [$token])
+    ? unscoped(function () use ($token) {
+        return fetchOne('SELECT f.*, c.full_name, t.name AS tech_name
+                         FROM pos_feedback f
+                         LEFT JOIN pos_clients c ON c.id=f.client_id
+                         LEFT JOIN technicians t ON t.id=f.technician_id
+                         WHERE f.token=?', [$token]);
+      })
     : null;
+if ($row) tenantUse((int)$row['tenant_id']);
 
 $saved = false; $err = '';
 if ($row && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -23,13 +29,14 @@ if ($row && $_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($row['responded_at']) {
         $err = 'This form has already been answered — thank you!';
     } else {
-        query('UPDATE pos_feedback SET rating=?, comment=?, responded_at=NOW() WHERE id=?',
-              [$rating, mb_substr(trim($_POST['comment'] ?? ''), 0, 2000), $row['id']]);
+        query('UPDATE pos_feedback SET rating=?, comment=?, responded_at=NOW() WHERE id=? AND tenant_id=?',
+              [$rating, mb_substr(trim($_POST['comment'] ?? ''), 0, 2000), $row['id'], tenantId()]);
         $saved = true;
     }
 }
-$biz = settings();
-$set = posSettings();
+// A link that matches nothing has no salon to name.
+$biz = $row ? settings() : [];
+$set = $row ? posSettings() : ['owner_name' => ''];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -55,7 +62,7 @@ $set = posSettings();
 <?php if (!$row): ?>
   <h1>Link not found</h1>
   <p style="color:var(--ink-soft)">That feedback link isn't valid. If you'd still like to tell us how we did,
-     please call us<?= !empty($biz['business_phone']) ? ' on ' . e($biz['business_phone']) : '' ?>.</p>
+     please call the salon.</p>
 <?php elseif ($saved || $row['responded_at']): ?>
   <div style="text-align:center">
     <div style="font-size:56px">💖</div>

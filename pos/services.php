@@ -50,11 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // at a time is thirty round trips nobody makes.
             foreach ($_POST['price'] ?? [] as $sid => $_) {
                 $sid = (int)$sid;
-                if (!fetchOne('SELECT 1 x FROM services WHERE id=?', [$sid])) continue;
+                if (!tenantOwns('services', $sid)) continue;
                 $name = trim((string)($_POST['name'][$sid] ?? ''));
                 if ($name === '') throw new RuntimeException('A service cannot be left without a name.');
                 query('UPDATE services SET name=?, category=?, price=?, duration_minutes=?,
-                       turn_value=?, is_active=?, display_order=? WHERE id=?', [
+                       turn_value=?, is_active=?, display_order=? WHERE id=? AND tenant_id=?', [
                     mb_substr($name, 0, 160),
                     mb_substr(trim((string)($_POST['category'][$sid] ?? '')) ?: 'Other', 0, 80),
                     max(0, (float)($_POST['price'][$sid] ?? 0)),
@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     max(0, min(9.99, (float)($_POST['turn'][$sid] ?? 1))),
                     empty($_POST['off'][$sid]) ? 1 : 0,
                     max(0, min(9999, (int)($_POST['order'][$sid] ?? 0))),
-                    $sid,
+                    $sid, tenantId(),
                 ]);
             }
             $msg = 'Menu saved.';
@@ -70,10 +70,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'add') {
             $name = trim((string)($_POST['new_name'] ?? ''));
             if ($name === '') throw new RuntimeException('Give the service a name.');
-            $order = (int)fetchOne('SELECT COALESCE(MAX(display_order),0)+1 v FROM services')['v'];
-            query('INSERT INTO services (name, category, price, duration_minutes, turn_value,
+            $order = (int)fetchOne('SELECT COALESCE(MAX(display_order),0)+1 v FROM services WHERE tenant_id=?', [tenantId()])['v'];
+            query('INSERT INTO services (tenant_id, name, category, price, duration_minutes, turn_value,
                                          display_order, is_active, description)
-                   VALUES (?,?,?,?,?,?,1,"")', [
+                   VALUES (?,?,?,?,?,?,?,1,"")', [
+                tenantId(),
                 mb_substr($name, 0, 160),
                 mb_substr(trim((string)($_POST['new_category'] ?? '')) ?: 'Other', 0, 80),
                 max(0, (float)($_POST['new_price'] ?? 0)),
@@ -85,17 +86,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         } else {
             $id = (int)($_POST['id'] ?? 0);
-            if (!fetchOne('SELECT 1 x FROM services WHERE id=?', [$id])) throw new RuntimeException('Service not found.');
+            if (!tenantOwns('services', $id)) throw new RuntimeException('Service not found.');
 
             if ($action === 'save') {
                 $url = trim($_POST['image_url'] ?? '');
                 if (!empty($_FILES['image']['name'])) {
                     $url = storeServiceImage($_FILES['image'], $id);
                 }
-                query('UPDATE services SET image_url=? WHERE id=?', [$url, $id]);
+                query('UPDATE services SET image_url=? WHERE id=? AND tenant_id=?', [$url, $id, tenantId()]);
                 $msg = 'Photo updated.';
             } elseif ($action === 'clear_image') {
-                query("UPDATE services SET image_url='' WHERE id=?", [$id]);
+                query("UPDATE services SET image_url='' WHERE id=? AND tenant_id=?", [$id, tenantId()]);
                 $msg = 'Photo removed.';
             }
         }
@@ -104,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $e) { $err = $e->getMessage(); }
 }
 $msg = $msg ?: ($_GET['m'] ?? '');
-$services = fetchAll('SELECT * FROM services ORDER BY display_order, name');
+$services = fetchAll('SELECT * FROM services WHERE tenant_id=? ORDER BY display_order, name', [tenantId()]);
 $categories = array_values(array_filter(array_unique(array_column($services, 'category'))));
 sort($categories);
 ?>

@@ -39,33 +39,35 @@ $msg = $msg ?: ($_GET['m'] ?? '');
 $per    = stampsPerCard();
 $reward = posSettings()['stamp_reward'] ?? 'Free service';
 
+$tid = tenantId();
 $stats = fetchOne('SELECT COUNT(*) clients,
                           COALESCE(SUM(stamps),0) stamps_total,
                           COALESCE(AVG(stamps),0) avg_stamps,
                           COALESCE(SUM(rewards_earned - rewards_redeemed),0) pending,
                           COALESCE(SUM(rewards_redeemed),0) given
-                   FROM pos_clients WHERE is_active=1');
+                   FROM pos_clients WHERE tenant_id=? AND is_active=1', [$tid]);
 
 // "Close" means within two stamps of a full card.
 $close = fetchAll('SELECT * FROM pos_clients
-                   WHERE is_active=1 AND stamps > 0 AND (stamps % ?) >= ?
+                   WHERE tenant_id=? AND is_active=1 AND stamps > 0 AND (stamps % ?) >= ?
                    ORDER BY (stamps % ?) DESC, last_visit DESC LIMIT 25',
-                  [$per, max(1, $per - 2), $per]);
+                  [$tid, $per, max(1, $per - 2), $per]);
 
 $ready = fetchAll('SELECT * FROM pos_clients
-                   WHERE is_active=1 AND rewards_earned > rewards_redeemed
-                   ORDER BY last_visit DESC LIMIT 25');
+                   WHERE tenant_id=? AND is_active=1 AND rewards_earned > rewards_redeemed
+                   ORDER BY last_visit DESC LIMIT 25', [$tid]);
 
-$top = fetchAll('SELECT * FROM pos_clients WHERE is_active=1 AND stamps > 0
-                 ORDER BY stamps DESC LIMIT 15');
+$top = fetchAll('SELECT * FROM pos_clients WHERE tenant_id=? AND is_active=1 AND stamps > 0
+                 ORDER BY stamps DESC LIMIT 15', [$tid]);
 
 $recent = fetchAll('SELECT t.*, c.full_name FROM pos_stamp_txns t
                     JOIN pos_clients c ON c.id = t.client_id
-                    ORDER BY t.id DESC LIMIT 30');
+                    WHERE t.tenant_id=?
+                    ORDER BY t.id DESC LIMIT 30', [$tid]);
 
 // How far round the current card everyone is.
 $dist = array_fill(0, $per + 1, 0);
-foreach (fetchAll('SELECT stamps FROM pos_clients WHERE is_active=1') as $r) {
+foreach (fetchAll('SELECT stamps FROM pos_clients WHERE tenant_id=? AND is_active=1', [$tid]) as $r) {
     $dist[(int)$r['stamps'] % $per]++;
 }
 

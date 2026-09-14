@@ -17,28 +17,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 isset($_POST['is_taxable']) ? 1 : 0, isset($_POST['is_active']) ? 1 : 0,
             ];
             if ($id) {
-                $args[] = $id;
+                array_push($args, $id, tenantId());
                 query('UPDATE pos_products SET name=?,sku=?,barcode=?,category=?,price=?,cost=?,stock_qty=?,
-                       low_stock_at=?,is_taxable=?,is_active=? WHERE id=?', $args);
+                       low_stock_at=?,is_taxable=?,is_active=? WHERE id=? AND tenant_id=?', $args);
                 $msg = 'Product updated.';
             } else {
-                query('INSERT INTO pos_products (name,sku,barcode,category,price,cost,stock_qty,
-                       low_stock_at,is_taxable,is_active) VALUES (?,?,?,?,?,?,?,?,?,?)', $args);
+                query('INSERT INTO pos_products (tenant_id,name,sku,barcode,category,price,cost,stock_qty,
+                       low_stock_at,is_taxable,is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?)', array_merge([tenantId()], $args));
                 $msg = 'Product added.';
             }
         } elseif ($action === 'restock') {
-            query('UPDATE pos_products SET stock_qty = stock_qty + ? WHERE id=?',
-                  [(int)$_POST['qty'], (int)$_POST['id']]);
+            query('UPDATE pos_products SET stock_qty = stock_qty + ? WHERE id=? AND tenant_id=?',
+                  [(int)$_POST['qty'], (int)$_POST['id'], tenantId()]);
             $msg = 'Stock updated.';
         } elseif ($action === 'delete') {
-            query('UPDATE pos_products SET is_active=0 WHERE id=?', [(int)$_POST['id']]);
+            query('UPDATE pos_products SET is_active=0 WHERE id=? AND tenant_id=?', [(int)$_POST['id'], tenantId()]);
             $msg = 'Product retired (kept for past receipts).';
         }
     } catch (Throwable $e) { $err = $e->getMessage(); }
 }
 
-$editing  = fetchOne('SELECT * FROM pos_products WHERE id=?', [(int)($_GET['edit'] ?? 0)]);
-$products = fetchAll('SELECT * FROM pos_products ORDER BY is_active DESC, category, display_order, name');
+$editing  = fetchOne('SELECT * FROM pos_products WHERE id=? AND tenant_id=?', [(int)($_GET['edit'] ?? 0), tenantId()]);
+$products = fetchAll('SELECT * FROM pos_products WHERE tenant_id=? ORDER BY is_active DESC, category, display_order, name', [tenantId()]);
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-err"><?= e($err) ?></div><?php endif; ?>

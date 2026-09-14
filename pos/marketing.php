@@ -8,30 +8,32 @@ require_once __DIR__ . '/../includes/sms.php';
 
 /**
  * Segments only ever return clients who opted in — an opt-out is honoured
- * everywhere, no exceptions.
+ * everywhere, no exceptions — and only this salon's clients. A campaign is
+ * never a way to text another salon's guests.
  */
 function segmentQuery(string $segment, string $arg = ''): array {
-    $base = 'SELECT * FROM pos_clients WHERE is_active=1 AND marketing_opt_in=1 AND phone <> ""';
+    $base = 'SELECT * FROM pos_clients WHERE tenant_id=? AND is_active=1 AND marketing_opt_in=1 AND phone <> ""';
+    $tid  = tenantId();
     switch ($segment) {
         case 'lapsed':
             $days = (int)($arg ?: 60);
             return [$base . ' AND (last_visit IS NULL OR last_visit < DATE_SUB(CURDATE(), INTERVAL ? DAY))
-                     ORDER BY last_visit IS NULL, last_visit', [$days]];
+                     ORDER BY last_visit IS NULL, last_visit', [$tid, $days]];
         case 'recent':
             $days = (int)($arg ?: 30);
-            return [$base . ' AND last_visit >= DATE_SUB(CURDATE(), INTERVAL ? DAY) ORDER BY last_visit DESC', [$days]];
+            return [$base . ' AND last_visit >= DATE_SUB(CURDATE(), INTERVAL ? DAY) ORDER BY last_visit DESC', [$tid, $days]];
         case 'birthday':
             $m = (int)($arg ?: date('n'));
-            return [$base . ' AND birthday IS NOT NULL AND MONTH(birthday)=? ORDER BY DAY(birthday)', [$m]];
+            return [$base . ' AND birthday IS NOT NULL AND MONTH(birthday)=? ORDER BY DAY(birthday)', [$tid, $m]];
         case 'vip':
             $min = (float)($arg ?: 300);
-            return [$base . ' AND total_spend >= ? ORDER BY total_spend DESC', [$min]];
+            return [$base . ' AND total_spend >= ? ORDER BY total_spend DESC', [$tid, $min]];
         case 'points':
             $min = (int)($arg ?: 100);
-            return [$base . ' AND points >= ? ORDER BY points DESC', [$min]];
+            return [$base . ' AND points >= ? ORDER BY points DESC', [$tid, $min]];
         case 'all':
         default:
-            return [$base . ' ORDER BY full_name', []];
+            return [$base . ' ORDER BY full_name', [$tid]];
     }
 }
 
@@ -71,9 +73,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $r = sendSMS($cl['phone'], $body, null, 'custom');
                 if (!empty($r['success'])) $sent++; else $failed++;
             }
-            query('INSERT INTO pos_campaigns (name, message, segment, segment_args, recipients,
-                     sent_count, failed_count, admin_id) VALUES (?,?,?,?,?,?,?,?)',
-                  [trim($name) ?: 'Campaign', $message, $segment, $segArg,
+            query('INSERT INTO pos_campaigns (tenant_id, name, message, segment, segment_args, recipients,
+                     sent_count, failed_count, admin_id) VALUES (?,?,?,?,?,?,?,?,?)',
+                  [tenantId(), trim($name) ?: 'Campaign', $message, $segment, $segArg,
                    count($audience), $sent, $failed, $admin['id'] ?? null]);
             $msg = "Sent $sent message" . ($sent === 1 ? '' : 's') . ($failed ? ", $failed failed" : '') . '.';
         } else {
@@ -84,8 +86,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $history = fetchAll('SELECT c.*, u.name AS who FROM pos_campaigns c
                      LEFT JOIN admin_users u ON u.id=c.admin_id
-                     ORDER BY c.id DESC LIMIT 25');
-$optedOut = (int)(fetchOne('SELECT COUNT(*) n FROM pos_clients WHERE is_active=1 AND marketing_opt_in=0')['n'] ?? 0);
+                     WHERE c.tenant_id=?
+                     ORDER BY c.id DESC LIMIT 25', [tenantId()]);
+$optedOut = (int)(fetchOne('SELECT COUNT(*) n FROM pos_clients WHERE tenant_id=? AND is_active=1 AND marketing_opt_in=0',
+                           [tenantId()])['n'] ?? 0);
+$sentAllTime = (int)(fetchOne('SELECT COALESCE(SUM(sent_count),0) n FROM pos_campaigns WHERE tenant_id=?',
+                              [tenantId()])['n'] ?? 0);
 $twilioReady = (bool)(settings()['twilio_account_sid'] ?: TWILIO_ACCOUNT_SID);
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
@@ -97,7 +103,7 @@ $twilioReady = (bool)(settings()['twilio_account_sid'] ?: TWILIO_ACCOUNT_SID);
 <div class="stats">
   <div class="stat"><div class="v"><?= count($audience) ?></div><div class="k">In this segment</div></div>
   <div class="stat"><div class="v"><?= $optedOut ?></div><div class="k">Opted out (never messaged)</div></div>
-  <div class="stat"><div class="v"><?= (int)(fetchOne('SELECT COALESCE(SUM(sent_count),0) n FROM pos_campaigns')['n'] ?? 0) ?></div><div class="k">Texts sent all time</div></div>
+  <div class="stat"><div class="v"><?= $sentAllTime ?></div><div class="k">Texts sent all time</div></div>
 </div>
 
 <div class="card">

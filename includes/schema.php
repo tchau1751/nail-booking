@@ -125,6 +125,19 @@ function migrateTenancyLocked(array &$log): void {
         $log[] = "added $t.tenant_id";
     }
 
+    // Every query now names its salon, so a row that arrives without one is a
+    // bug. With no default the insert fails on the spot instead of quietly
+    // landing in salon 1.
+    foreach (TENANT_TABLES as $t) {
+        if (!tableExists($t) || !columnExists($t, 'tenant_id')) continue;
+        $col = fetchOne("SELECT COLUMN_DEFAULT d FROM information_schema.COLUMNS
+                          WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME='tenant_id'", [dbName(), $t]);
+        if ($col && $col['d'] !== null && strtoupper((string)$col['d']) !== 'NULL') {
+            db()->exec("ALTER TABLE `$t` ALTER COLUMN tenant_id DROP DEFAULT");
+            $log[] = "$t.tenant_id must now be given";
+        }
+    }
+
     // Numbers and codes that were unique across the whole database only need to
     // be unique inside one salon: two salons can both ring ticket 260914-0001,
     // and the same guest can be a client of both.

@@ -6,29 +6,33 @@ require_once __DIR__ . '/includes/salon.php';
 require_once __DIR__ . '/includes/rewards.php';
 
 $id = (int)($_GET['id'] ?? 0);
+$tid = tenantId();
 $msg = ''; $err = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
+        // Every action below is on this client, so it has to be this salon's client.
+        if (!clientFind($id)) throw new RuntimeException('Client not found.');
         switch ($_POST['action'] ?? '') {
             case 'save':
                 query('UPDATE pos_clients SET full_name=?, phone=?, email=?, birthday=?,
-                       preferred_tech_id=?, marketing_opt_in=? WHERE id=?', [
+                       preferred_tech_id=?, marketing_opt_in=? WHERE id=? AND tenant_id=?', [
                     trim($_POST['full_name']), normalisePhone($_POST['phone']), trim($_POST['email']),
-                    $_POST['birthday'] ?: null, ((int)$_POST['preferred_tech_id']) ?: null,
-                    isset($_POST['marketing_opt_in']) ? 1 : 0, $id,
+                    $_POST['birthday'] ?: null, ownedId('technicians', $_POST['preferred_tech_id'] ?? null),
+                    isset($_POST['marketing_opt_in']) ? 1 : 0, $id, $tid,
                 ]);
                 $msg = 'Client saved.';
                 break;
             case 'note':
                 if (trim($_POST['note']) !== '') {
-                    query('INSERT INTO pos_client_notes (client_id, note, is_pinned, admin_id) VALUES (?,?,?,?)',
-                          [$id, trim($_POST['note']), isset($_POST['is_pinned']) ? 1 : 0, $admin['id'] ?? null]);
+                    query('INSERT INTO pos_client_notes (tenant_id, client_id, note, is_pinned, admin_id) VALUES (?,?,?,?,?)',
+                          [$tid, $id, trim($_POST['note']), isset($_POST['is_pinned']) ? 1 : 0, $admin['id'] ?? null]);
                     $msg = 'Note added.';
                 }
                 break;
             case 'note_delete':
-                query('DELETE FROM pos_client_notes WHERE id=? AND client_id=?', [(int)$_POST['note_id'], $id]);
+                query('DELETE FROM pos_client_notes WHERE id=? AND tenant_id=? AND client_id=?',
+                      [(int)$_POST['note_id'], $tid, $id]);
                 $msg = 'Note deleted.';
                 break;
             case 'stamp_redeem':
@@ -55,27 +59,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 $msg = $msg ?: ($_GET['m'] ?? '');
 
-$client = fetchOne('SELECT * FROM pos_clients WHERE id=?', [$id]);
+$client = clientFind($id);
 if (!$client) { echo '<div class="alert alert-err">Client not found.</div>';
                 require __DIR__ . '/includes/layout_end.php'; exit; }
 
 $pageTitle = $client['full_name'];
-$techs   = fetchAll('SELECT id,name FROM technicians WHERE is_active=1 ORDER BY display_order, name');
+$techs   = fetchAll('SELECT id,name FROM technicians WHERE tenant_id=? AND is_active=1 ORDER BY display_order, name', [$tid]);
 $notes   = clientNotes($id);
 $visits  = fetchAll("SELECT s.*, COALESCE((SELECT GROUP_CONCAT(DISTINCT t2.name ORDER BY t2.name SEPARATOR ', ')
                  FROM pos_sale_items i2 JOIN technicians t2 ON t2.id = i2.technician_id
                  WHERE i2.sale_id = s.id), t.name) AS tech_name
                      FROM pos_sales s
                      LEFT JOIN technicians t ON t.id=s.technician_id
-                     WHERE s.client_id=? ORDER BY s.id DESC LIMIT 50", [$id]);
-$points  = fetchAll('SELECT * FROM pos_loyalty_txns WHERE client_id=? ORDER BY id DESC LIMIT 30', [$id]);
-$cards   = fetchAll('SELECT * FROM pos_gift_cards WHERE client_id=? ORDER BY id DESC', [$id]);
-$consents = fetchAll('SELECT * FROM pos_consents WHERE client_id=? ORDER BY signed_at DESC', [$id]);
-$templates = fetchAll('SELECT * FROM pos_consent_templates WHERE is_active=1 ORDER BY id');
+                     WHERE s.tenant_id=? AND s.client_id=? ORDER BY s.id DESC LIMIT 50", [$tid, $id]);
+$points  = fetchAll('SELECT * FROM pos_loyalty_txns WHERE tenant_id=? AND client_id=? ORDER BY id DESC LIMIT 30', [$tid, $id]);
+$cards   = fetchAll('SELECT * FROM pos_gift_cards WHERE tenant_id=? AND client_id=? ORDER BY id DESC', [$tid, $id]);
+$consents = fetchAll('SELECT * FROM pos_consents WHERE tenant_id=? AND client_id=? ORDER BY signed_at DESC', [$tid, $id]);
+$templates = fetchAll('SELECT * FROM pos_consent_templates WHERE tenant_id=? AND is_active=1 ORDER BY id', [$tid]);
+$stampTxns = fetchAll('SELECT * FROM pos_stamp_txns WHERE tenant_id=? AND client_id=? ORDER BY id DESC LIMIT 15', [$tid, $id]);
 $favourite = fetchOne("SELECT i.name, COUNT(*) n FROM pos_sale_items i
                        JOIN pos_sales s ON s.id=i.sale_id
-                       WHERE s.client_id=? AND i.item_type='service' AND s.status='completed'
-                       GROUP BY i.name ORDER BY n DESC LIMIT 1", [$id]);
+                       WHERE s.tenant_id=? AND s.client_id=? AND i.item_type='service' AND s.status='completed'
+                       GROUP BY i.name ORDER BY n DESC LIMIT 1", [$tid, $id]);
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-err"><?= e($err) ?></div><?php endif; ?>
@@ -187,7 +192,7 @@ $favourite = fetchOne("SELECT i.name, COUNT(*) n FROM pos_sale_items i
       <table>
         <thead><tr><th>When</th><th>What</th><th class="num">Change</th><th class="num">Balance</th></tr></thead>
         <tbody>
-        <?php foreach (fetchAll('SELECT * FROM pos_stamp_txns WHERE client_id=? ORDER BY id DESC LIMIT 15', [$id]) as $st): ?>
+        <?php foreach ($stampTxns as $st): ?>
           <tr><td><?= date('m/d/y', strtotime($st['created_at'])) ?></td>
               <td><?= e($st['note'] ?: $st['type']) ?></td>
               <td class="num"><?= $st['stamps'] > 0 ? '+' : '' ?><?= (int)$st['stamps'] ?></td>

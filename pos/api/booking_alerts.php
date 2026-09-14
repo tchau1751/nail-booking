@@ -12,17 +12,18 @@ if (!isLoggedIn()) jsonOut(['error' => 'Not signed in.'], 401);
 
 $since = (int)($_GET['since'] ?? 0);
 
+// Only this salon's bookings chime — another salon's guest is not our news.
 $rows = fetchAll(
     "SELECT a.id, a.full_name, a.appointment_date, a.start_time, s.name AS service_name
        FROM appointments a
        LEFT JOIN services s ON s.id = a.service_id
-      WHERE a.id > ? AND a.status = 'pending'
+      WHERE a.tenant_id = ? AND a.id > ? AND a.status = 'pending'
       ORDER BY a.id ASC
       LIMIT 20",
-    [$since]
+    [tenantId(), $since]
 );
 
-$latest = (int)(fetchOne('SELECT MAX(id) m FROM appointments')['m'] ?? $since);
+$latest = (int)(fetchOne('SELECT MAX(id) m FROM appointments WHERE tenant_id=?', [tenantId()])['m'] ?? $since);
 
 jsonOut([
     'ok'        => true,

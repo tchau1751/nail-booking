@@ -76,7 +76,7 @@ function money($n): string {
 }
 
 function posInstalled(): bool {
-    try { fetchOne('SELECT 1 FROM pos_settings WHERE id=1'); return true; }
+    try { fetchOne('SELECT 1 FROM pos_settings WHERE tenant_id=? LIMIT 1', [tenantId()]); return true; }
     catch (Throwable $e) { return false; }
 }
 
@@ -113,6 +113,16 @@ function cartDefaults(): array {
  */
 function &cart(): array {
     startSecureSession();
+    // Open tickets belong to the salon they were started in. A browser now
+    // working for a different salon starts clean instead of carrying another
+    // salon's services and technicians onto this one's tickets. Tickets opened
+    // before there were salons are simply adopted.
+    $owner = $_SESSION['pos_carts_tenant'] ?? null;
+    if ($owner !== null && (int)$owner !== tenantId()) {
+        unset($_SESSION['pos_carts'], $_SESSION['pos_cart_active'], $_SESSION['pos_cart']);
+    }
+    $_SESSION['pos_carts_tenant'] = tenantId();
+
     if (!isset($_SESSION['pos_carts']) || !is_array($_SESSION['pos_carts'])) {
         $_SESSION['pos_carts'] = [];
         // A till left open across the upgrade still holds the single old cart.
@@ -394,10 +404,12 @@ function cartTotalsFor(array $c): array {
  * the read, the increment and the reservation together, and the row stays
  * locked until the surrounding transaction commits — so a checkout that rolls
  * back gives its number back rather than leaving a hole.
+ *
+ * Each salon counts on its own: two salons can both be on ticket 0001 today.
  */
 function nextSeq(string $series): int {
-    query('INSERT INTO pos_counters (name, seq) VALUES (?, LAST_INSERT_ID(1))
-           ON DUPLICATE KEY UPDATE seq = LAST_INSERT_ID(seq + 1)', [$series]);
+    query('INSERT INTO pos_counters (tenant_id, name, seq) VALUES (?, ?, LAST_INSERT_ID(1))
+           ON DUPLICATE KEY UPDATE seq = LAST_INSERT_ID(seq + 1)', [tenantId(), $series]);
     return (int)db()->lastInsertId();
 }
 
@@ -462,6 +474,7 @@ function checkout(array $payments): int {
     $paid   = round($cashCard + $ten['gift'] + $ten['points_value'], 2);
 
     $set  = posSettings();
+    $tid  = tenantId();
     $pdo  = db();
     $pdo->beginTransaction();
     try {
@@ -479,11 +492,11 @@ function checkout(array $payments): int {
             : 0;
 
         query("INSERT INTO pos_sales
-                 (sale_no, appointment_id, checkin_id, client_id, customer_name, customer_phone,
+                 (tenant_id, sale_no, appointment_id, checkin_id, client_id, customer_name, customer_phone,
                   technician_id, cashier_id, subtotal, discount_total, tax_total, tip_total,
                   tip_method, grand_total, paid_total, change_due, points_earned, points_redeemed, note)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [
-            nextSaleNo(), $c['appointment_id'] ?: null, $c['checkin_id'] ?: null, $c['client_id'] ?: null,
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [
+            $tid, nextSaleNo(), $c['appointment_id'] ?: null, $c['checkin_id'] ?: null, $c['client_id'] ?: null,
             $c['customer_name'], $c['customer_phone'], $c['technician_id'] ?: null, $admin['id'] ?? null,
             $t['subtotal'], $t['discount'], $t['tax'], $t['tip'],
             $c['tip_method'] === 'cash' ? 'cash' : 'card',
@@ -496,14 +509,15 @@ function checkout(array $payments): int {
         $lineTips = allocateTips($t['lines'], (float)$t['tip']);
         foreach ($t['lines'] as $k => $l) {
             query("INSERT INTO pos_sale_items
-                     (sale_id,item_type,ref_id,name,unit_price,qty,discount,tax,line_total,technician_id,tip)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)", [
-                $saleId, $l['type'], $l['ref_id'], $l['name'], $l['price'], $l['qty'],
+                     (tenant_id,sale_id,item_type,ref_id,name,unit_price,qty,discount,tax,line_total,technician_id,tip)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", [
+                $tid, $saleId, $l['type'], $l['ref_id'], $l['name'], $l['price'], $l['qty'],
                 $l['discount'], $l['tax'], $l['line_total'], $l['technician_id'] ?: $c['technician_id'] ?: null,
                 $lineTips[$k] ?? 0,
             ]);
             if ($l['type'] === 'product' && $l['ref_id']) {
-                query("UPDATE pos_products SET stock_qty = stock_qty - ? WHERE id = ?", [$l['qty'], $l['ref_id']]);
+                query("UPDATE pos_products SET stock_qty = stock_qty - ? WHERE id = ? AND tenant_id = ?",
+                      [$l['qty'], $l['ref_id'], $tid]);
             }
             if ($l['type'] === 'giftcard') {
                 for ($i = 0; $i < $l['qty']; $i++) {
@@ -516,19 +530,19 @@ function checkout(array $payments): int {
         // Tenders, in the order they are applied.
         foreach ($c['gift_cards'] as $g) {
             $took = giftCardRedeem((int)$g['id'], (float)$g['amount'], $saleId);
-            query("INSERT INTO pos_payments (sale_id,method,amount,reference) VALUES (?,?,?,?)",
-                  [$saleId, 'gift', $took, $g['code']]);
+            query("INSERT INTO pos_payments (tenant_id,sale_id,method,amount,reference) VALUES (?,?,?,?,?)",
+                  [$tid, $saleId, 'gift', $took, $g['code']]);
         }
         if ($ten['points'] > 0) {
             if (!$c['client_id']) throw new RuntimeException('Attach a client before redeeming points.');
             pointsLog((int)$c['client_id'], 'redeem', -$ten['points'], 'Redeemed on sale', $saleId);
-            query("INSERT INTO pos_payments (sale_id,method,amount,reference) VALUES (?,?,?,?)",
-                  [$saleId, 'other', $ten['points_value'], $ten['points'] . ' points']);
+            query("INSERT INTO pos_payments (tenant_id,sale_id,method,amount,reference) VALUES (?,?,?,?,?)",
+                  [$tid, $saleId, 'other', $ten['points_value'], $ten['points'] . ' points']);
         }
         foreach ($payments as $p) {
             if ((float)$p['amount'] <= 0) continue;
-            query("INSERT INTO pos_payments (sale_id,method,amount,reference) VALUES (?,?,?,?)",
-                  [$saleId, $p['method'], (float)$p['amount'], $p['reference'] ?? '']);
+            query("INSERT INTO pos_payments (tenant_id,sale_id,method,amount,reference) VALUES (?,?,?,?,?)",
+                  [$tid, $saleId, $p['method'], (float)$p['amount'], $p['reference'] ?? '']);
         }
 
         // Client record: points earned and lifetime figures.
@@ -541,30 +555,31 @@ function checkout(array $payments): int {
             foreach ($t['lines'] as $l) if ($l['type'] !== 'giftcard') { $isVisit = true; break; }
             if (stampsEnabled() && $isVisit) {
                 stampAward((int)$c['client_id'], $saleId, 'Visit');
-                query('UPDATE pos_sales SET stamp_awarded=1 WHERE id=?', [$saleId]);
+                query('UPDATE pos_sales SET stamp_awarded=1 WHERE id=? AND tenant_id=?', [$saleId, $tid]);
             }
             query('UPDATE pos_clients
                      SET total_visits = total_visits + 1,
                          total_spend  = total_spend + ?,
                          last_visit   = CURDATE(),
                          first_visit  = COALESCE(first_visit, CURDATE())
-                   WHERE id = ?', [$t['total'], $c['client_id']]);
+                   WHERE id = ? AND tenant_id = ?', [$t['total'], $c['client_id'], $tid]);
         }
 
         // Close out the queue entry and the booking this ticket came from.
         if ($c['checkin_id']) {
-            query("UPDATE pos_checkins SET status='done', completed_at=NOW(), sale_id=? WHERE id=?",
-                  [$saleId, $c['checkin_id']]);
+            query("UPDATE pos_checkins SET status='done', completed_at=NOW(), sale_id=? WHERE id=? AND tenant_id=?",
+                  [$saleId, $c['checkin_id'], $tid]);
         }
         if ($c['appointment_id']) {
-            query("UPDATE appointments SET status='completed' WHERE id=? AND status<>'cancelled'", [$c['appointment_id']]);
+            query("UPDATE appointments SET status='completed' WHERE id=? AND tenant_id=? AND status<>'cancelled'",
+                  [$c['appointment_id'], $tid]);
         }
 
         // Queue up a feedback request the guest can answer from their phone.
         if ((int)($set['feedback_enabled'] ?? 1) === 1 && $c['client_id']) {
-            query('INSERT INTO pos_feedback (token, client_id, sale_id, technician_id)
-                   VALUES (?,?,?,?)', [bin2hex(random_bytes(16)), $c['client_id'], $saleId,
-                                       $c['technician_id'] ?: null]);
+            query('INSERT INTO pos_feedback (tenant_id, token, client_id, sale_id, technician_id)
+                   VALUES (?,?,?,?,?)', [$tid, bin2hex(random_bytes(16)), $c['client_id'], $saleId,
+                                         $c['technician_id'] ?: null]);
         }
 
         $pdo->commit();
@@ -582,7 +597,7 @@ function refundableLines(int $saleId): array {
         'SELECT i.*, t.name AS tech_name, (i.qty - i.refunded_qty) AS left_qty
            FROM pos_sale_items i
            LEFT JOIN technicians t ON t.id = i.technician_id
-          WHERE i.sale_id = ? ORDER BY i.id', [$saleId]);
+          WHERE i.tenant_id = ? AND i.sale_id = ? ORDER BY i.id', [tenantId(), $saleId]);
 }
 
 function nextRefundNo(): string {
@@ -605,15 +620,16 @@ function nextRefundNo(): string {
 function refundSale(int $saleId, array $qtys, string $method, string $reason = '', bool $withTip = false): int
 {
     require_once __DIR__ . '/rewards.php';
+    $tid = tenantId();
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        $sale = fetchOne('SELECT * FROM pos_sales WHERE id=? FOR UPDATE', [$saleId]);
+        $sale = fetchOne('SELECT * FROM pos_sales WHERE id=? AND tenant_id=? FOR UPDATE', [$saleId, $tid]);
         if (!$sale) throw new RuntimeException('Sale not found.');
         if ($sale['status'] === 'voided') throw new RuntimeException('That sale was voided — there is nothing to refund.');
 
         $items = [];
-        foreach (fetchAll('SELECT * FROM pos_sale_items WHERE sale_id=?', [$saleId]) as $it) {
+        foreach (fetchAll('SELECT * FROM pos_sale_items WHERE tenant_id=? AND sale_id=?', [$tid, $saleId]) as $it) {
             $items[(int)$it['id']] = $it;
         }
 
@@ -655,23 +671,24 @@ function refundSale(int $saleId, array $qtys, string $method, string $reason = '
         $total     = round($sumAmount + $sumTax + $sumTip, 2);
 
         $admin = currentAdmin();
-        query('INSERT INTO pos_refunds (refund_no, sale_id, amount, tax, tip, total, method, reason, admin_id)
-               VALUES (?,?,?,?,?,?,?,?,?)',
-              [nextRefundNo(), $saleId, $sumAmount, $sumTax, $sumTip, $total,
+        query('INSERT INTO pos_refunds (tenant_id, refund_no, sale_id, amount, tax, tip, total, method, reason, admin_id)
+               VALUES (?,?,?,?,?,?,?,?,?,?)',
+              [$tid, nextRefundNo(), $saleId, $sumAmount, $sumTax, $sumTip, $total,
                in_array($method, ['cash', 'card', 'gift', 'other'], true) ? $method : 'cash',
                mb_substr(trim($reason), 0, 255), $admin['id'] ?? null]);
         $refundId = (int)$pdo->lastInsertId();
 
         foreach ($picked as $p) {
             $it = $p['item'];
-            query('INSERT INTO pos_refund_items (refund_id, sale_item_id, qty, amount, tax, tip)
-                   VALUES (?,?,?,?,?,?)',
-                  [$refundId, (int)$it['id'], $p['qty'], $p['amount'], $p['tax'], $p['tip']]);
-            query('UPDATE pos_sale_items SET refunded_qty = refunded_qty + ? WHERE id=?',
-                  [$p['qty'], (int)$it['id']]);
+            query('INSERT INTO pos_refund_items (tenant_id, refund_id, sale_item_id, qty, amount, tax, tip)
+                   VALUES (?,?,?,?,?,?,?)',
+                  [$tid, $refundId, (int)$it['id'], $p['qty'], $p['amount'], $p['tax'], $p['tip']]);
+            query('UPDATE pos_sale_items SET refunded_qty = refunded_qty + ? WHERE id=? AND tenant_id=?',
+                  [$p['qty'], (int)$it['id'], $tid]);
             // Retail comes back onto the shelf. Services obviously do not.
             if ($it['item_type'] === 'product' && $it['ref_id']) {
-                query('UPDATE pos_products SET stock_qty = stock_qty + ? WHERE id=?', [$p['qty'], $it['ref_id']]);
+                query('UPDATE pos_products SET stock_qty = stock_qty + ? WHERE id=? AND tenant_id=?',
+                      [$p['qty'], $it['ref_id'], $tid]);
             }
         }
 
@@ -684,28 +701,28 @@ function refundSale(int $saleId, array $qtys, string $method, string $reason = '
             if ($earned > 0 && $earnBase > 0) {
                 $alreadyBack = (int)(fetchOne(
                     "SELECT COALESCE(-SUM(points), 0) v FROM pos_loyalty_txns
-                      WHERE sale_id = ? AND type = 'adjust' AND points < 0", [$saleId])['v'] ?? 0);
+                      WHERE tenant_id = ? AND sale_id = ? AND type = 'adjust' AND points < 0", [$tid, $saleId])['v'] ?? 0);
                 $back = (int)round($earned * min(1, $sumAmount / $earnBase));
                 $back = max(0, min($back, $earned - $alreadyBack));
                 if ($back > 0) {
                     pointsLog((int)$sale['client_id'], 'adjust', -$back, 'Refunded on sale', $saleId);
                 }
             }
-            query('UPDATE pos_clients SET total_spend = GREATEST(0, total_spend - ?) WHERE id=?',
-                  [$total, $sale['client_id']]);
+            query('UPDATE pos_clients SET total_spend = GREATEST(0, total_spend - ?) WHERE id=? AND tenant_id=?',
+                  [$total, $sale['client_id'], $tid]);
         }
 
         // Nothing left on any line means the whole ticket came back.
         $outstanding = (int)(fetchOne('SELECT COALESCE(SUM(qty - refunded_qty), 0) v
-                                       FROM pos_sale_items WHERE sale_id=?', [$saleId])['v'] ?? 0);
+                                       FROM pos_sale_items WHERE tenant_id=? AND sale_id=?', [$tid, $saleId])['v'] ?? 0);
         if ($outstanding === 0) {
-            query("UPDATE pos_sales SET status='refunded' WHERE id=?", [$saleId]);
+            query("UPDATE pos_sales SET status='refunded' WHERE id=? AND tenant_id=?", [$saleId, $tid]);
             if ($sale['client_id']) {
-                query('UPDATE pos_clients SET total_visits = GREATEST(0, total_visits - 1) WHERE id=?',
-                      [$sale['client_id']]);
+                query('UPDATE pos_clients SET total_visits = GREATEST(0, total_visits - 1) WHERE id=? AND tenant_id=?',
+                      [$sale['client_id'], $tid]);
                 if (!empty($sale['stamp_awarded'])) {
                     stampRevoke((int)$sale['client_id'], $saleId, 'Sale refunded');
-                    query('UPDATE pos_sales SET stamp_awarded=0 WHERE id=?', [$saleId]);
+                    query('UPDATE pos_sales SET stamp_awarded=0 WHERE id=? AND tenant_id=?', [$saleId, $tid]);
                 }
             }
         }
@@ -720,30 +737,33 @@ function refundSale(int $saleId, array $qtys, string $method, string $reason = '
 
 function voidSale(int $saleId): void {
     require_once __DIR__ . '/rewards.php';
+    $tid = tenantId();
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        $sale = fetchOne('SELECT * FROM pos_sales WHERE id=?', [$saleId]);
+        $sale = fetchOne('SELECT * FROM pos_sales WHERE id=? AND tenant_id=?', [$saleId, $tid]);
         if (!$sale || $sale['status'] !== 'completed') throw new RuntimeException('Sale cannot be voided.');
         // Part of this ticket has already gone back. Voiding would return the
         // stock and the points a second time, so the rest has to be refunded.
-        if (fetchOne('SELECT 1 x FROM pos_refunds WHERE sale_id=? LIMIT 1', [$saleId])) {
+        if (fetchOne('SELECT 1 x FROM pos_refunds WHERE tenant_id=? AND sale_id=? LIMIT 1', [$tid, $saleId])) {
             throw new RuntimeException('This ticket has already been refunded in part — refund the rest instead of voiding.');
         }
 
-        foreach (fetchAll('SELECT * FROM pos_sale_items WHERE sale_id=?', [$saleId]) as $it) {
+        foreach (fetchAll('SELECT * FROM pos_sale_items WHERE tenant_id=? AND sale_id=?', [$tid, $saleId]) as $it) {
             if ($it['item_type'] === 'product' && $it['ref_id']) {
-                query('UPDATE pos_products SET stock_qty = stock_qty + ? WHERE id=?', [$it['qty'], $it['ref_id']]);
+                query('UPDATE pos_products SET stock_qty = stock_qty + ? WHERE id=? AND tenant_id=?',
+                      [$it['qty'], $it['ref_id'], $tid]);
             }
         }
 
         // Any gift card sold on this ticket is cancelled; any card spent on it
         // gets its balance back.
-        foreach (fetchAll('SELECT * FROM pos_gift_cards WHERE issued_sale_id=?', [$saleId]) as $card) {
-            query("UPDATE pos_gift_cards SET status='void', balance=0 WHERE id=?", [$card['id']]);
+        foreach (fetchAll('SELECT * FROM pos_gift_cards WHERE tenant_id=? AND issued_sale_id=?', [$tid, $saleId]) as $card) {
+            query("UPDATE pos_gift_cards SET status='void', balance=0 WHERE id=? AND tenant_id=?", [$card['id'], $tid]);
             giftCardLog((int)$card['id'], 'void', -(float)$card['balance'], 0, $saleId);
         }
-        foreach (fetchAll("SELECT * FROM pos_gift_card_txns WHERE sale_id=? AND type='redeem'", [$saleId]) as $tx) {
+        foreach (fetchAll("SELECT * FROM pos_gift_card_txns WHERE tenant_id=? AND sale_id=? AND type='redeem'",
+                          [$tid, $saleId]) as $tx) {
             giftCardReload((int)$tx['gift_card_id'], (float)$tx['amount'], $saleId);
         }
 
@@ -758,15 +778,15 @@ function voidSale(int $saleId): void {
             }
             if (!empty($sale['stamp_awarded'])) {
                 stampRevoke((int)$sale['client_id'], $saleId, 'Sale voided');
-                query('UPDATE pos_sales SET stamp_awarded=0 WHERE id=?', [$saleId]);
+                query('UPDATE pos_sales SET stamp_awarded=0 WHERE id=? AND tenant_id=?', [$saleId, $tid]);
             }
             query('UPDATE pos_clients
                      SET total_visits = GREATEST(0, total_visits - 1),
                          total_spend  = GREATEST(0, total_spend - ?)
-                   WHERE id = ?', [$sale['grand_total'], $sale['client_id']]);
+                   WHERE id = ? AND tenant_id = ?', [$sale['grand_total'], $sale['client_id'], $tid]);
         }
 
-        query("UPDATE pos_sales SET status='voided', voided_at=NOW() WHERE id=?", [$saleId]);
+        query("UPDATE pos_sales SET status='voided', voided_at=NOW() WHERE id=? AND tenant_id=?", [$saleId, $tid]);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();

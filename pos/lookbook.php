@@ -46,43 +46,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = $_POST['action'] ?? '';
 
+        $tid = tenantId();
         if ($action === 'brands') {
             $on = array_map('intval', (array)($_POST['on'] ?? []));
-            db()->exec('UPDATE pos_polish_brands SET is_active = 0');
-            foreach ($on as $id) query('UPDATE pos_polish_brands SET is_active=1 WHERE id=?', [$id]);
+            query('UPDATE pos_polish_brands SET is_active = 0 WHERE tenant_id=?', [$tid]);
+            foreach ($on as $id) query('UPDATE pos_polish_brands SET is_active=1 WHERE id=? AND tenant_id=?', [$id, $tid]);
             $msg = 'Polish brands saved.';
 
         } elseif ($action === 'brand_add') {
             $name = trim((string)($_POST['name'] ?? ''));
             if ($name === '') throw new RuntimeException('Type the brand name.');
-            $next = (int)fetchOne('SELECT COALESCE(MAX(display_order),0)+1 v FROM pos_polish_brands')['v'];
-            query('INSERT IGNORE INTO pos_polish_brands (name, is_active, display_order) VALUES (?,1,?)',
-                  [mb_substr($name, 0, 80), $next]);
+            $next = (int)fetchOne('SELECT COALESCE(MAX(display_order),0)+1 v FROM pos_polish_brands WHERE tenant_id=?', [$tid])['v'];
+            query('INSERT IGNORE INTO pos_polish_brands (tenant_id, name, is_active, display_order) VALUES (?,?,1,?)',
+                  [$tid, mb_substr($name, 0, 80), $next]);
             $msg = 'Added ' . $name . '.';
 
         } elseif ($action === 'brand_del') {
-            query('DELETE FROM pos_polish_brands WHERE id=?', [(int)$_POST['id']]);
+            query('DELETE FROM pos_polish_brands WHERE id=? AND tenant_id=?', [(int)$_POST['id'], $tid]);
             $msg = 'Brand removed.';
 
         } elseif ($action === 'design_add') {
-            $have = (int)fetchOne('SELECT COUNT(*) v FROM pos_nail_designs')['v'];
+            $have = (int)fetchOne('SELECT COUNT(*) v FROM pos_nail_designs WHERE tenant_id=?', [$tid])['v'];
             if ($have >= DESIGN_MAX) {
                 throw new RuntimeException('That is ' . DESIGN_MAX . ' designs already — remove one first.');
             }
             $url  = storeDesignImage($_FILES['image'] ?? []);
-            $next = (int)fetchOne('SELECT COALESCE(MAX(display_order),0)+1 v FROM pos_nail_designs')['v'];
-            query('INSERT INTO pos_nail_designs (image_url, caption, display_order) VALUES (?,?,?)',
-                  [$url, mb_substr(trim((string)($_POST['caption'] ?? '')), 0, 160), $next]);
+            $next = (int)fetchOne('SELECT COALESCE(MAX(display_order),0)+1 v FROM pos_nail_designs WHERE tenant_id=?', [$tid])['v'];
+            query('INSERT INTO pos_nail_designs (tenant_id, image_url, caption, display_order) VALUES (?,?,?,?)',
+                  [$tid, $url, mb_substr(trim((string)($_POST['caption'] ?? '')), 0, 160), $next]);
             $msg = 'Design added.';
 
         } elseif ($action === 'design_del') {
-            $d = fetchOne('SELECT * FROM pos_nail_designs WHERE id=?', [(int)$_POST['id']]);
+            $d = fetchOne('SELECT * FROM pos_nail_designs WHERE id=? AND tenant_id=?', [(int)$_POST['id'], $tid]);
             if ($d) {
                 // Take the file with the row; an orphaned upload folder only
                 // grows and nothing will ever point at it again.
                 $path = DESIGN_DIR . '/' . basename((string)$d['image_url']);
                 if (is_file($path)) @unlink($path);
-                query('DELETE FROM pos_nail_designs WHERE id=?', [(int)$d['id']]);
+                query('DELETE FROM pos_nail_designs WHERE id=? AND tenant_id=?', [(int)$d['id'], $tid]);
             }
             $msg = 'Design removed.';
         }
@@ -94,8 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 if (!$msg && isset($_GET['m'])) $msg = (string)$_GET['m'];
 
-$brands  = fetchAll('SELECT * FROM pos_polish_brands ORDER BY display_order, name');
-$designs = fetchAll('SELECT * FROM pos_nail_designs ORDER BY display_order, id');
+$brands  = fetchAll('SELECT * FROM pos_polish_brands WHERE tenant_id=? ORDER BY display_order, name', [tenantId()]);
+$designs = fetchAll('SELECT * FROM pos_nail_designs WHERE tenant_id=? ORDER BY display_order, id', [tenantId()]);
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-err"><?= e($err) ?></div><?php endif; ?>

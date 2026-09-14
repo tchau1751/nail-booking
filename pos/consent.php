@@ -12,12 +12,13 @@ require_once __DIR__ . '/includes/salon.php';
 
 $set = posSettings();
 $biz = settings();
+$tid = tenantId();
 $err = ''; $savedId = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $clientId = (int)$_POST['client_id'];
-        if (!fetchOne('SELECT 1 x FROM pos_clients WHERE id=?', [$clientId])) {
+        if (!clientFind($clientId)) {
             throw new RuntimeException('Client not found.');
         }
         $sig = $_POST['signature'] ?? '';
@@ -26,9 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (trim($_POST['signed_name'] ?? '') === '') throw new RuntimeException('Please type the name of the person signing.');
 
-        query('INSERT INTO pos_consents (client_id, form_key, form_title, form_body, signature, signed_name)
-               VALUES (?,?,?,?,?,?)', [
-            $clientId, $_POST['form_key'], $_POST['form_title'], $_POST['form_body'],
+        query('INSERT INTO pos_consents (tenant_id, client_id, form_key, form_title, form_body, signature, signed_name)
+               VALUES (?,?,?,?,?,?,?)', [
+            $tid, $clientId, $_POST['form_key'], $_POST['form_title'], $_POST['form_body'],
             $sig, trim($_POST['signed_name']),
         ]);
         $savedId = (int)db()->lastInsertId();
@@ -39,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (isset($_GET['view']) || $savedId) {
     $id = $savedId ?: (int)$_GET['view'];
     $c  = fetchOne('SELECT c.*, cl.full_name, cl.phone FROM pos_consents c
-                    JOIN pos_clients cl ON cl.id=c.client_id WHERE c.id=?', [$id]);
+                    JOIN pos_clients cl ON cl.id=c.client_id WHERE c.id=? AND c.tenant_id=?', [$id, $tid]);
     if (!$c) { echo '<div class="alert alert-err">Form not found.</div>';
                require __DIR__ . '/includes/layout_end.php'; exit; }
     ?>
@@ -72,15 +73,15 @@ if (isset($_GET['view']) || $savedId) {
 
 // Signing flow.
 $clientId = (int)($_GET['client'] ?? 0);
-$client   = fetchOne('SELECT * FROM pos_clients WHERE id=?', [$clientId]);
+$client   = clientFind($clientId);
 $formKey  = $_GET['form'] ?? 'general';
-$tpl      = fetchOne('SELECT * FROM pos_consent_templates WHERE form_key=? AND is_active=1', [$formKey])
-         ?: fetchOne('SELECT * FROM pos_consent_templates WHERE is_active=1 ORDER BY id LIMIT 1');
-$all      = fetchAll('SELECT * FROM pos_consent_templates WHERE is_active=1 ORDER BY id');
+$tpl      = fetchOne('SELECT * FROM pos_consent_templates WHERE tenant_id=? AND form_key=? AND is_active=1', [$tid, $formKey])
+         ?: fetchOne('SELECT * FROM pos_consent_templates WHERE tenant_id=? AND is_active=1 ORDER BY id LIMIT 1', [$tid]);
+$all      = fetchAll('SELECT * FROM pos_consent_templates WHERE tenant_id=? AND is_active=1 ORDER BY id', [$tid]);
 
 if (!$client) {
-    $recent = fetchAll('SELECT * FROM pos_clients WHERE is_active=1
-                        ORDER BY last_visit IS NULL, last_visit DESC, id DESC LIMIT 30');
+    $recent = fetchAll('SELECT * FROM pos_clients WHERE tenant_id=? AND is_active=1
+                        ORDER BY last_visit IS NULL, last_visit DESC, id DESC LIMIT 30', [$tid]);
     ?>
     <div class="card">
       <h2>Who is signing?</h2>
@@ -91,6 +92,10 @@ if (!$client) {
       <?php endforeach; ?>
     </div>
     <?php require __DIR__ . '/includes/layout_end.php'; exit;
+}
+if (!$tpl) {
+    echo '<div class="alert alert-err">There are no policy forms set up yet — add them under Settings.</div>';
+    require __DIR__ . '/includes/layout_end.php'; exit;
 }
 ?>
 <?php if ($err): ?><div class="alert alert-err"><?= e($err) ?></div><?php endif; ?>

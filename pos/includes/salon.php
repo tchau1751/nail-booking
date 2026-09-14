@@ -8,6 +8,10 @@
 //  turns today is up next; ties break on who was assigned least
 //  recently. Nothing is automatic — the board only *hints*, the
 //  front desk always makes the call.
+//
+//  Every query here stays inside the signed-in salon: a phone
+//  number is a client of this salon, a turn is taken on this
+//  salon's floor.
 // ============================================================
 require_once __DIR__ . '/pos.php';
 
@@ -22,7 +26,12 @@ function normalisePhone(string $p): string {
 function clientByPhone(string $phone): ?array {
     $d = normalisePhone($phone);
     if ($d === '') return null;
-    return fetchOne('SELECT * FROM pos_clients WHERE phone = ?', [$d]);
+    return fetchOne('SELECT * FROM pos_clients WHERE tenant_id=? AND phone=?', [tenantId(), $d]);
+}
+
+/** One of this salon's clients, or null — including for an id that belongs to another salon. */
+function clientFind(int $id): ?array {
+    return fetchOne('SELECT * FROM pos_clients WHERE id=? AND tenant_id=?', [$id, tenantId()]);
 }
 
 /** Finds a client by phone or creates one. Returns the row. */
@@ -37,15 +46,15 @@ function clientUpsert(string $name, string $phone, string $email = ''): array {
         if ($name !== '' && $name !== $existing['full_name'] && $existing['full_name'] === '') { $updates[] = 'full_name=?'; $args[] = $name; }
         if ($email !== '' && $existing['email'] === '') { $updates[] = 'email=?'; $args[] = $email; }
         if ($updates) {
-            $args[] = $existing['id'];
-            query('UPDATE pos_clients SET ' . implode(',', $updates) . ' WHERE id=?', $args);
-            return fetchOne('SELECT * FROM pos_clients WHERE id=?', [$existing['id']]);
+            array_push($args, $existing['id'], tenantId());
+            query('UPDATE pos_clients SET ' . implode(',', $updates) . ' WHERE id=? AND tenant_id=?', $args);
+            return clientFind((int)$existing['id']);
         }
         return $existing;
     }
-    query('INSERT INTO pos_clients (full_name, phone, email, first_visit) VALUES (?,?,?,NULL)',
-          [$name ?: 'Guest', $d, $email]);
-    return fetchOne('SELECT * FROM pos_clients WHERE id=?', [db()->lastInsertId()]);
+    query('INSERT INTO pos_clients (tenant_id, full_name, phone, email, first_visit) VALUES (?,?,?,?,NULL)',
+          [tenantId(), $name ?: 'Guest', $d, $email]);
+    return clientFind((int)db()->lastInsertId());
 }
 
 function formatPhone(string $p): string {
@@ -58,7 +67,8 @@ function formatPhone(string $p): string {
 function clientNotes(int $clientId): array {
     return fetchAll('SELECT n.*, u.name AS who FROM pos_client_notes n
                      LEFT JOIN admin_users u ON u.id = n.admin_id
-                     WHERE n.client_id=? ORDER BY n.is_pinned DESC, n.id DESC', [$clientId]);
+                     WHERE n.tenant_id=? AND n.client_id=?
+                     ORDER BY n.is_pinned DESC, n.id DESC', [tenantId(), $clientId]);
 }
 
 /* ── Shifts: who is on the floor ─────────────────────────── */
@@ -66,18 +76,21 @@ function clientNotes(int $clientId): array {
 function techIsOn(int $techId, ?string $date = null): bool {
     $date = $date ?: date('Y-m-d');
     return (bool)fetchOne('SELECT 1 x FROM pos_tech_shifts
-                           WHERE technician_id=? AND shift_date=? AND clock_out IS NULL', [$techId, $date]);
+                           WHERE tenant_id=? AND technician_id=? AND shift_date=? AND clock_out IS NULL',
+                          [tenantId(), $techId, $date]);
 }
 
 function clockIn(int $techId): void {
+    if (!tenantOwns('technicians', $techId)) throw new RuntimeException('Technician not found.');
     if (techIsOn($techId)) return;
-    query('INSERT INTO pos_tech_shifts (technician_id, shift_date, clock_in) VALUES (?,?,NOW())',
-          [$techId, date('Y-m-d')]);
+    query('INSERT INTO pos_tech_shifts (tenant_id, technician_id, shift_date, clock_in) VALUES (?,?,?,NOW())',
+          [tenantId(), $techId, date('Y-m-d')]);
 }
 
 function clockOut(int $techId): void {
     query('UPDATE pos_tech_shifts SET clock_out=NOW()
-           WHERE technician_id=? AND shift_date=? AND clock_out IS NULL', [$techId, date('Y-m-d')]);
+           WHERE tenant_id=? AND technician_id=? AND shift_date=? AND clock_out IS NULL',
+          [tenantId(), $techId, date('Y-m-d')]);
 }
 
 /* ── Turns ───────────────────────────────────────────────── */
@@ -96,14 +109,16 @@ function turnsBoard(?string $date = null): array {
                 COUNT(CASE WHEN c.status = 'in_service' THEN 1 END) AS busy,
                 MAX(c.assigned_at) AS last_assigned,
                 (SELECT s.clock_in FROM pos_tech_shifts s
-                  WHERE s.technician_id=t.id AND s.shift_date=? AND s.clock_out IS NULL
+                  WHERE s.tenant_id=t.tenant_id AND s.technician_id=t.id
+                    AND s.shift_date=? AND s.clock_out IS NULL
                   ORDER BY s.id DESC LIMIT 1) AS since
          FROM technicians t
          LEFT JOIN pos_checkins c
-                ON c.assigned_tech_id = t.id AND DATE(c.checked_in_at) = ?
-         WHERE t.is_active = 1
+                ON c.tenant_id = t.tenant_id AND c.assigned_tech_id = t.id
+               AND DATE(c.checked_in_at) = ?
+         WHERE t.tenant_id = ? AND t.is_active = 1
          GROUP BY t.id, t.name, t.commission_rate, t.pay_type
-         ORDER BY t.display_order, t.name", [$date, $date]);
+         ORDER BY t.display_order, t.name", [$date, $date, tenantId()]);
 
     foreach ($rows as &$r) {
         $r['turns']     = (float)$r['turns'];
@@ -143,23 +158,25 @@ function checkInGuest(array $in): int {
         $c = clientUpsert($name, $phone);
         $clientId = (int)$c['id'];
         if ($name !== '' && $c['full_name'] === 'Guest') {
-            query('UPDATE pos_clients SET full_name=? WHERE id=?', [$name, $clientId]);
+            query('UPDATE pos_clients SET full_name=? WHERE id=? AND tenant_id=?', [$name, $clientId, tenantId()]);
         }
     }
 
-    $serviceId = ((int)($in['service_id'] ?? 0)) ?: null;
+    // The service, the requested technician and the booking all arrive from the
+    // tablet. Each is kept only if it is this salon's.
+    $serviceId = ownedId('services', $in['service_id'] ?? null);
     $turn = 1.00;
     if ($serviceId) {
-        $s = fetchOne('SELECT turn_value FROM services WHERE id=?', [$serviceId]);
+        $s = fetchOne('SELECT turn_value FROM services WHERE id=? AND tenant_id=?', [$serviceId, tenantId()]);
         if ($s) $turn = (float)$s['turn_value'];
     }
 
-    query('INSERT INTO pos_checkins (client_id, guest_name, guest_phone, party_size, service_id,
+    query('INSERT INTO pos_checkins (tenant_id, client_id, guest_name, guest_phone, party_size, service_id,
              requested_tech_id, appointment_id, turn_value, note)
-           VALUES (?,?,?,?,?,?,?,?,?)', [
-        $clientId, $name, normalisePhone($phone), max(1, (int)($in['party_size'] ?? 1)),
-        $serviceId, ((int)($in['requested_tech_id'] ?? 0)) ?: null,
-        ((int)($in['appointment_id'] ?? 0)) ?: null, $turn, trim($in['note'] ?? ''),
+           VALUES (?,?,?,?,?,?,?,?,?,?)', [
+        tenantId(), $clientId, $name, normalisePhone($phone), max(1, (int)($in['party_size'] ?? 1)),
+        $serviceId, ownedId('technicians', $in['requested_tech_id'] ?? null),
+        ownedId('appointments', $in['appointment_id'] ?? null), $turn, trim($in['note'] ?? ''),
     ]);
     return (int)db()->lastInsertId();
 }
@@ -175,16 +192,17 @@ function waitingList(): array {
          LEFT JOIN technicians rt ON rt.id = c.requested_tech_id
          LEFT JOIN technicians at ON at.id = c.assigned_tech_id
          LEFT JOIN pos_clients cl ON cl.id = c.client_id
-         WHERE c.status IN ('waiting','in_service') AND DATE(c.checked_in_at) = CURDATE()
-         ORDER BY FIELD(c.status,'waiting','in_service'), c.checked_in_at");
+         WHERE c.tenant_id = ? AND c.status IN ('waiting','in_service') AND DATE(c.checked_in_at) = CURDATE()
+         ORDER BY FIELD(c.status,'waiting','in_service'), c.checked_in_at", [tenantId()]);
 }
 
 function assignCheckin(int $checkinId, int $techId): void {
-    $c = fetchOne('SELECT * FROM pos_checkins WHERE id=?', [$checkinId]);
+    $c = fetchOne('SELECT * FROM pos_checkins WHERE id=? AND tenant_id=?', [$checkinId, tenantId()]);
     if (!$c) throw new RuntimeException('Check-in not found.');
     if ($c['status'] === 'done') throw new RuntimeException('That guest is already finished.');
-    query("UPDATE pos_checkins SET assigned_tech_id=?, status='in_service', assigned_at=NOW() WHERE id=?",
-          [$techId, $checkinId]);
+    if (!tenantOwns('technicians', $techId)) throw new RuntimeException('Technician not found.');
+    query("UPDATE pos_checkins SET assigned_tech_id=?, status='in_service', assigned_at=NOW()
+           WHERE id=? AND tenant_id=?", [$techId, $checkinId, tenantId()]);
 }
 
 function setCheckinStatus(int $checkinId, string $status): void {
@@ -192,6 +210,6 @@ function setCheckinStatus(int $checkinId, string $status): void {
         throw new RuntimeException('Unknown status.');
     }
     $done = in_array($status, ['done','no_show'], true);
-    query('UPDATE pos_checkins SET status=?, completed_at=' . ($done ? 'NOW()' : 'NULL') . ' WHERE id=?',
-          [$status, $checkinId]);
+    query('UPDATE pos_checkins SET status=?, completed_at=' . ($done ? 'NOW()' : 'NULL') . ' WHERE id=? AND tenant_id=?',
+          [$status, $checkinId, tenantId()]);
 }

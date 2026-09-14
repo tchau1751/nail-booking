@@ -9,7 +9,20 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/sms.php';
 require_once __DIR__ . '/../includes/slots.php';
 
-$raw = json_decode(file_get_contents('php://input'), true);
+$raw = json_decode(file_get_contents('php://input'), true) ?: [];
+
+// The booking page says which salon it is booking for; the guest can only
+// ever book into that salon's diary.
+try {
+    $salon = publicSalon(isset($raw['salon']) ? (string)$raw['salon'] : null);
+} catch (TenantMissing $e) {
+    echo json_encode(['success'=>false,'error'=>$e->getMessage()]);
+    exit;
+}
+if (tenantSignInBlock($salon)) {
+    echo json_encode(['success'=>false,'error'=>'This salon is not taking online bookings right now. Please call us.']);
+    exit;
+}
 
 // ── Validate required fields ──────────────────────────────────
 $required = ['full_name','email','phone','service_id','appointment_date','start_time'];
@@ -26,7 +39,8 @@ $phone     = trim($raw['phone']);
 $serviceId = (int)$raw['service_id'];
 $date      = $raw['appointment_date'];
 $start     = $raw['start_time'];
-$techId    = isset($raw['technician_id']) && $raw['technician_id'] !== '' ? (int)$raw['technician_id'] : null;
+// A technician from another salon is treated as "anyone available".
+$techId    = isset($raw['technician_id']) && $raw['technician_id'] !== '' ? ownedId('technicians', $raw['technician_id']) : null;
 $notes     = trim($raw['notes'] ?? '');
 
 // ── Re-validate slot is still available ──────────────────────
@@ -48,22 +62,23 @@ if (!$valid) {
 
 // ── Insert appointment ────────────────────────────────────────
 try {
+    $tid = tenantId();
     query(
-        'INSERT INTO appointments (full_name,email,phone,service_id,technician_id,appointment_date,start_time,end_time,status,notes)
-         VALUES (?,?,?,?,?,?,?,?,?,?)',
-        [$name,$email,$phone,$serviceId,$techId,$date,$start,$endTime,'pending',$notes]
+        'INSERT INTO appointments (tenant_id,full_name,email,phone,service_id,technician_id,appointment_date,start_time,end_time,status,notes)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+        [$tid,$name,$email,$phone,$serviceId,$techId,$date,$start,$endTime,'pending',$notes]
     );
     $apptId = (int)db()->lastInsertId();
 
     // ── Send confirmation SMS ─────────────────────────────────
-    $appt    = fetchOne('SELECT * FROM appointments WHERE id=?', [$apptId]);
-    $service = fetchOne('SELECT * FROM services WHERE id=?',     [$serviceId]);
+    $appt    = fetchOne('SELECT * FROM appointments WHERE id=? AND tenant_id=?', [$apptId, $tid]);
+    $service = fetchOne('SELECT * FROM services WHERE id=? AND tenant_id=?',     [$serviceId, $tid]);
     $s       = settings();
     $bizName = $s['business_name'] ?? 'Diamond Nail & Spa';
 
     $smsResult = sendSMS($phone, smsConfirmation($appt, $service, $bizName), $apptId, 'confirmation');
     if ($smsResult['success']) {
-        query('UPDATE appointments SET sms_confirmation_sent=1 WHERE id=?', [$apptId]);
+        query('UPDATE appointments SET sms_confirmation_sent=1 WHERE id=? AND tenant_id=?', [$apptId, $tid]);
     }
 
     echo json_encode([

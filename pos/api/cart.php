@@ -2,6 +2,10 @@
 // ============================================================
 //  Cart + checkout JSON API. Every response returns the freshly
 //  recomputed ticket so the tablet never has to do its own math.
+//
+//  Every id the tablet sends — a service, a product, a technician,
+//  a client, a booking — is looked up inside the signed-in salon
+//  before it lands on a ticket.
 // ============================================================
 require_once __DIR__ . '/../includes/pos.php';
 require_once __DIR__ . '/../includes/salon.php';
@@ -19,9 +23,14 @@ function techNames(): array {
     static $n = null;
     if ($n === null) {
         $n = [];
-        foreach (fetchAll('SELECT id, name FROM technicians') as $t) $n[(int)$t['id']] = $t['name'];
+        foreach (fetchAll('SELECT id, name FROM technicians WHERE tenant_id=?', [tenantId()]) as $t) $n[(int)$t['id']] = $t['name'];
     }
     return $n;
+}
+
+/** A technician of this salon who is still working here. */
+function techOnFloor(?int $techId): bool {
+    return $techId && fetchOne('SELECT 1 x FROM technicians WHERE id=? AND tenant_id=? AND is_active=1', [$techId, tenantId()]);
 }
 
 function ticketPayload(array $extra = []): array {
@@ -43,7 +52,7 @@ function ticketPayload(array $extra = []): array {
         ];
     }
     $ten    = cartTenders();
-    $client = $c['client_id'] ? fetchOne('SELECT id, full_name, points FROM pos_clients WHERE id=?', [$c['client_id']]) : null;
+    $client = $c['client_id'] ? clientFind((int)$c['client_id']) : null;
 
     return $extra + [
         'ok'    => true,
@@ -85,10 +94,10 @@ try {
     switch ($action) {
 
         case 'add_service':
-            $s = fetchOne('SELECT * FROM services WHERE id=? AND is_active=1', [(int)$_POST['id']]);
+            $s = fetchOne('SELECT * FROM services WHERE id=? AND tenant_id=? AND is_active=1', [(int)$_POST['id'], tenantId()]);
             if (!$s) jsonOut(['error' => 'Service not found.'], 404);
             $tech = (int)($_POST['technician_id'] ?? 0) ?: null;
-            if ($tech && !fetchOne('SELECT 1 x FROM technicians WHERE id=? AND is_active=1', [$tech])) {
+            if ($tech && !techOnFloor($tech)) {
                 jsonOut(['error' => 'That technician is not on the floor.'], 422);
             }
             cartAdd('service', (int)$s['id'], $s['name'], (float)$s['price'], 1, $tech, 1);
@@ -124,21 +133,22 @@ try {
 
         case 'set_line_tech':
             $tech = (int)($_POST['technician_id'] ?? 0) ?: null;
-            if ($tech && !fetchOne('SELECT 1 x FROM technicians WHERE id=? AND is_active=1', [$tech])) {
+            if ($tech && !techOnFloor($tech)) {
                 jsonOut(['error' => 'That technician is not on the floor.'], 422);
             }
             cartSetLineTech((string)$_POST['key'], $tech);
             break;
 
         case 'add_product':
-            $p = fetchOne('SELECT * FROM pos_products WHERE id=? AND is_active=1', [(int)$_POST['id']]);
+            $p = fetchOne('SELECT * FROM pos_products WHERE id=? AND tenant_id=? AND is_active=1', [(int)$_POST['id'], tenantId()]);
             if (!$p) jsonOut(['error' => 'Product not found.'], 404);
             cartAdd('product', (int)$p['id'], $p['name'], (float)$p['price'], 1, null, (int)$p['is_taxable']);
             break;
 
         case 'scan':   // barcode wedge / manual code entry
             $code = trim($_POST['code'] ?? '');
-            $p = fetchOne('SELECT * FROM pos_products WHERE is_active=1 AND (barcode=? OR sku=?)', [$code, $code]);
+            $p = fetchOne('SELECT * FROM pos_products WHERE tenant_id=? AND is_active=1 AND (barcode=? OR sku=?)',
+                          [tenantId(), $code, $code]);
             if (!$p) jsonOut(['error' => 'No product matches "' . $code . '".'], 404);
             cartAdd('product', (int)$p['id'], $p['name'], (float)$p['price'], 1, null, (int)$p['is_taxable']);
             jsonOut(ticketPayload(['scanned' => $p['name']]));
@@ -154,7 +164,7 @@ try {
                 jsonOut(['error' => 'A manager has to approve a custom amount.', 'needs_manager' => true], 403);
             }
             $tech = (int)($_POST['technician_id'] ?? 0) ?: null;
-            if ($tech && !fetchOne('SELECT 1 x FROM technicians WHERE id=? AND is_active=1', [$tech])) {
+            if ($tech && !techOnFloor($tech)) {
                 jsonOut(['error' => 'That technician is not on the floor.'], 422);
             }
             // Taxed on the same rule as a service, not always-taxable: a custom
@@ -181,8 +191,9 @@ try {
             foreach (['customer_name','customer_phone','note'] as $f) {
                 if (isset($_POST[$f])) $c[$f] = trim((string)$_POST[$f]);
             }
-            if (isset($_POST['technician_id']))  $c['technician_id']  = ((int)$_POST['technician_id']) ?: null;
-            if (isset($_POST['appointment_id'])) $c['appointment_id'] = ((int)$_POST['appointment_id']) ?: null;
+            // Kept only if they are this salon's: the sale row is written from these.
+            if (isset($_POST['technician_id']))  $c['technician_id']  = ownedId('technicians', $_POST['technician_id']);
+            if (isset($_POST['appointment_id'])) $c['appointment_id'] = ownedId('appointments', $_POST['appointment_id']);
             break;
 
         case 'set_discount':
@@ -214,7 +225,7 @@ try {
         case 'load_appointment':
             $a = fetchOne('SELECT a.*, s.name AS service_name, s.price AS service_price
                            FROM appointments a JOIN services s ON s.id=a.service_id
-                           WHERE a.id=?', [(int)$_POST['id']]);
+                           WHERE a.id=? AND a.tenant_id=?', [(int)$_POST['id'], tenantId()]);
             if (!$a) jsonOut(['error' => 'Appointment not found.'], 404);
             cartReset();
             $c = &cart();
@@ -229,7 +240,7 @@ try {
         case 'load_checkin':
             $k = fetchOne('SELECT c.*, s.name AS service_name, s.price AS service_price
                            FROM pos_checkins c LEFT JOIN services s ON s.id=c.service_id
-                           WHERE c.id=?', [(int)$_POST['id']]);
+                           WHERE c.id=? AND c.tenant_id=?', [(int)$_POST['id'], tenantId()]);
             if (!$k) jsonOut(['error' => 'Check-in not found.'], 404);
             cartReset();
             $c = &cart();
@@ -246,7 +257,7 @@ try {
             break;
 
         case 'attach_client':
-            $cl = fetchOne('SELECT * FROM pos_clients WHERE id=?', [(int)$_POST['id']]);
+            $cl = clientFind((int)$_POST['id']);
             if (!$cl) jsonOut(['error' => 'Client not found.'], 404);
             $c = &cart();
             $c['client_id']      = (int)$cl['id'];
@@ -260,9 +271,9 @@ try {
             if ($term === '') jsonOut(['ok' => true, 'results' => []]);
             $digits = normalisePhone($term);
             $rows = fetchAll('SELECT id, full_name, phone, points, total_visits FROM pos_clients
-                              WHERE is_active=1 AND (full_name LIKE ? OR phone LIKE ?)
+                              WHERE tenant_id=? AND is_active=1 AND (full_name LIKE ? OR phone LIKE ?)
                               ORDER BY last_visit IS NULL, last_visit DESC LIMIT 12',
-                             ["%$term%", '%' . ($digits ?: $term) . '%']);
+                             [tenantId(), "%$term%", '%' . ($digits ?: $term) . '%']);
             foreach ($rows as &$r) { $r['phone'] = formatPhone($r['phone']); $r['points'] = (int)$r['points']; }
             jsonOut(['ok' => true, 'results' => $rows]);
 
@@ -315,7 +326,8 @@ try {
             $c = &cart();
             if (!$c['client_id']) jsonOut(['error' => 'Attach a client first.'], 422);
             $want = max(0, (int)($_POST['points'] ?? 0));
-            $cl   = fetchOne('SELECT points FROM pos_clients WHERE id=?', [$c['client_id']]);
+            $cl   = clientFind((int)$c['client_id']);
+            if (!$cl) jsonOut(['error' => 'Client not found.'], 404);
             $set  = posSettings();
             if ($want > 0 && $want < (int)($set['points_min_redeem'] ?? 0)) {
                 jsonOut(['error' => 'Minimum redemption is ' . (int)$set['points_min_redeem'] . ' points.'], 422);

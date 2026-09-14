@@ -23,6 +23,6 @@ if ($method === 'GET') {
         if ($f === 'twilio_auth_token' && trim((string)$d[$f]) === '') continue;
         $sets[]="$f=?"; $params[]=$d[$f];
     }
-    if($sets) { query('UPDATE business_settings SET '.implode(',',$sets).' WHERE id=1',$params); }
+    if($sets) { $params[] = tenantId(); query('UPDATE business_settings SET '.implode(',',$sets).' WHERE tenant_id=?',$params); }
     echo json_encode(['success'=>true]);
 }

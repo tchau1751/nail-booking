@@ -6,8 +6,11 @@ require_once __DIR__ . '/includes/layout_start.php';
 
 $from = $_GET['from'] ?? date('Y-m-d');
 $to   = $_GET['to']   ?? date('Y-m-d');
-$rng  = [$from, $to];
-$done = "status IN ('completed','refunded') AND DATE(created_at) BETWEEN ? AND ?";
+// Every figure on this page is this salon's: $rng leads with the salon, and
+// the refund subqueries take it once more before the dates.
+$tid  = tenantId();
+$rng  = [$tid, $from, $to];
+$done = "tenant_id = ? AND status IN ('completed','refunded') AND DATE(created_at) BETWEEN ? AND ?";
 
 $head = fetchOne("SELECT COUNT(*) c, COALESCE(SUM(subtotal),0) sub, COALESCE(SUM(discount_total),0) disc,
                          COALESCE(SUM(tax_total),0) tax, COALESCE(SUM(tip_total),0) tip,
@@ -16,7 +19,7 @@ $head = fetchOne("SELECT COUNT(*) c, COALESCE(SUM(subtotal),0) sub, COALESCE(SUM
 
 $byMethod = fetchAll("SELECT p.method, COUNT(*) c, SUM(p.amount) amt
                       FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id
-                      WHERE s.status IN ('completed','refunded') AND DATE(s.created_at) BETWEEN ? AND ?
+                      WHERE s.tenant_id = ? AND s.status IN ('completed','refunded') AND DATE(s.created_at) BETWEEN ? AND ?
                       GROUP BY p.method ORDER BY amt DESC", $rng);
 
 // Attribution is line-level here exactly as it is in Payroll. The two pages
@@ -27,11 +30,11 @@ $byTech = fetchAll("SELECT COALESCE(t.name,'Unassigned') tech, COUNT(DISTINCT i.
                     FROM pos_sale_items i
                     JOIN pos_sales s ON s.id=i.sale_id
                     LEFT JOIN (SELECT sale_item_id, SUM(amount) amount, SUM(tax) tax
-                                 FROM pos_refund_items GROUP BY sale_item_id) rf
+                                 FROM pos_refund_items WHERE tenant_id = ? GROUP BY sale_item_id) rf
                            ON rf.sale_item_id = i.id
                     LEFT JOIN technicians t ON t.id = i.technician_id
-                    WHERE s.status IN ('completed','refunded') AND DATE(s.created_at) BETWEEN ? AND ?
-                    GROUP BY tech ORDER BY revenue DESC", $rng);
+                    WHERE s.tenant_id = ? AND s.status IN ('completed','refunded') AND DATE(s.created_at) BETWEEN ? AND ?
+                    GROUP BY tech ORDER BY revenue DESC", [$tid, ...$rng]);
 
 $tipsByTech = fetchAll("SELECT COALESCE(t.name,'Unassigned') tech,
                                COUNT(DISTINCT i.sale_id) tickets,
@@ -42,7 +45,7 @@ $tipsByTech = fetchAll("SELECT COALESCE(t.name,'Unassigned') tech,
                         FROM pos_sale_items i
                         JOIN pos_sales s ON s.id = i.sale_id
                         LEFT JOIN technicians t ON t.id = i.technician_id
-                        WHERE s.status IN ('completed','refunded') AND i.tip > 0
+                        WHERE s.tenant_id = ? AND s.status IN ('completed','refunded') AND i.tip > 0
                           AND DATE(s.created_at) BETWEEN ? AND ?
                         GROUP BY tech ORDER BY tips DESC", $rng);
 
@@ -50,27 +53,27 @@ $byItem = fetchAll("SELECT i.name, i.item_type, SUM(i.qty - i.refunded_qty) qty,
                            SUM(i.line_total - COALESCE(rf.amount,0) - COALESCE(rf.tax,0)) revenue
                     FROM pos_sale_items i JOIN pos_sales s ON s.id=i.sale_id
                     LEFT JOIN (SELECT sale_item_id, SUM(amount) amount, SUM(tax) tax
-                                 FROM pos_refund_items GROUP BY sale_item_id) rf
+                                 FROM pos_refund_items WHERE tenant_id = ? GROUP BY sale_item_id) rf
                            ON rf.sale_item_id = i.id
-                    WHERE s.status IN ('completed','refunded') AND DATE(s.created_at) BETWEEN ? AND ?
-                    GROUP BY i.name, i.item_type ORDER BY revenue DESC LIMIT 25", $rng);
+                    WHERE s.tenant_id = ? AND s.status IN ('completed','refunded') AND DATE(s.created_at) BETWEEN ? AND ?
+                    GROUP BY i.name, i.item_type ORDER BY revenue DESC LIMIT 25", [$tid, ...$rng]);
 
 $byDay = fetchAll("SELECT DATE(created_at) d, COUNT(*) c, SUM(grand_total) tot
                    FROM pos_sales WHERE $done GROUP BY d ORDER BY d DESC", $rng);
 
 $refund = fetchOne("SELECT COALESCE(SUM(total),0) tot, COALESCE(SUM(tax),0) tax, COALESCE(SUM(tip),0) tip,
                            COALESCE(SUM(CASE WHEN method='cash' THEN total ELSE 0 END),0) cash
-                    FROM pos_refunds WHERE DATE(created_at) BETWEEN ? AND ?", $rng) ?: [];
+                    FROM pos_refunds WHERE tenant_id = ? AND DATE(created_at) BETWEEN ? AND ?", $rng) ?: [];
 $refundTot = (float)($refund['tot'] ?? 0);
 
 $cashSales = 0;
 foreach ($byMethod as $m) if ($m['method'] === 'cash') $cashSales = (float)$m['amt'];
 $changeGiven = (float)(fetchOne("SELECT COALESCE(SUM(change_due),0) v FROM pos_sales WHERE $done", $rng)['v'] ?? 0);
 $drawer = fetchOne("SELECT COALESCE(SUM(CASE WHEN kind IN ('open','pay_in') THEN amount ELSE -amount END),0) v
-                    FROM pos_cash_movements WHERE DATE(created_at) BETWEEN ? AND ?", $rng);
+                    FROM pos_cash_movements WHERE tenant_id = ? AND DATE(created_at) BETWEEN ? AND ?", $rng);
 // Cash handed back leaves the drawer just like change does.
 $expectedCash = $cashSales - $changeGiven - (float)($refund['cash'] ?? 0) + (float)($drawer['v'] ?? 0);
-$lowStock = fetchAll('SELECT * FROM pos_products WHERE is_active=1 AND stock_qty <= low_stock_at ORDER BY stock_qty');
+$lowStock = fetchAll('SELECT * FROM pos_products WHERE tenant_id=? AND is_active=1 AND stock_qty <= low_stock_at ORDER BY stock_qty', [$tid]);
 
 // ── Profit & loss ────────────────────────────────────────────
 // Revenue excludes tax (that money is the state's) and tips (that money is
@@ -79,7 +82,7 @@ $lowStock = fetchAll('SELECT * FROM pos_products WHERE is_active=1 AND stock_qty
 // line on some later ticket.
 $giftSold = (float)(fetchOne("SELECT COALESCE(SUM(i.line_total),0) v FROM pos_sale_items i
                               JOIN pos_sales s ON s.id=i.sale_id
-                              WHERE i.item_type='giftcard' AND s.status IN ('completed','refunded')
+                              WHERE s.tenant_id = ? AND i.item_type='giftcard' AND s.status IN ('completed','refunded')
                                 AND DATE(s.created_at) BETWEEN ? AND ?", $rng)['v'] ?? 0);
 $netRevenue = (float)($head['tot'] ?? 0) - (float)($head['tax'] ?? 0) - (float)($head['tip'] ?? 0) - $giftSold
             - ($refundTot - (float)($refund['tax'] ?? 0) - (float)($refund['tip'] ?? 0));
@@ -88,7 +91,7 @@ $cogs = (float)(fetchOne("SELECT COALESCE(SUM(p.cost * i.qty),0) v
                           FROM pos_sale_items i
                           JOIN pos_products p ON p.id = i.ref_id
                           JOIN pos_sales s ON s.id = i.sale_id
-                          WHERE i.item_type='product' AND s.status IN ('completed','refunded')
+                          WHERE s.tenant_id = ? AND i.item_type='product' AND s.status IN ('completed','refunded')
                             AND DATE(s.created_at) BETWEEN ? AND ?", $rng)['v'] ?? 0);
 
 $supplyOn   = (int)(posSettings()['supply_fee_enabled'] ?? 0) === 1;
@@ -99,12 +102,12 @@ foreach (fetchAll("SELECT t.commission_rate, t.pay_type, t.supply_fee_rate,
                    FROM pos_sale_items i
                    JOIN pos_sales s ON s.id=i.sale_id
                    LEFT JOIN (SELECT sale_item_id, SUM(amount) amount
-                                FROM pos_refund_items GROUP BY sale_item_id) rf
+                                FROM pos_refund_items WHERE tenant_id = ? GROUP BY sale_item_id) rf
                           ON rf.sale_item_id = i.id
                    JOIN technicians t ON t.id = i.technician_id
-                   WHERE i.item_type IN ('service','custom') AND s.status IN ('completed','refunded')
+                   WHERE s.tenant_id = ? AND i.item_type IN ('service','custom') AND s.status IN ('completed','refunded')
                      AND DATE(s.created_at) BETWEEN ? AND ?
-                   GROUP BY t.id, t.commission_rate, t.pay_type, t.supply_fee_rate", $rng) as $c) {
+                   GROUP BY t.id, t.commission_rate, t.pay_type, t.supply_fee_rate", [$tid, ...$rng]) as $c) {
     if ($c['pay_type'] === 'commission') $commission += (float)$c['rev'] * (float)$c['commission_rate'] / 100;
     // Charged on the chair's takings and withheld from the payout, so it comes
     // straight back off the wage bill. Booth renters buy their own.
@@ -117,7 +120,7 @@ $supplyKept = round($supplyKept, 2);
 $commission = round($commission - $supplyKept, 2);
 
 $expenses   = fetchAll('SELECT category, SUM(amount) v FROM pos_expenses
-                        WHERE expense_date BETWEEN ? AND ? GROUP BY category ORDER BY v DESC', $rng);
+                        WHERE tenant_id = ? AND expense_date BETWEEN ? AND ? GROUP BY category ORDER BY v DESC', $rng);
 $expenseTot = array_sum(array_column($expenses, 'v'));
 $netProfit  = round($netRevenue - $cogs - $commission - $expenseTot, 2);
 

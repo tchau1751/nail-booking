@@ -6,6 +6,12 @@ require_once __DIR__ . '/../includes/sms.php';
 if (!isLoggedIn()) { http_response_code(401); echo json_encode(['error'=>'Unauthorized']); exit; }
 
 $method = $_SERVER['REQUEST_METHOD'];
+$tid    = tenantId();
+
+/** One of this salon's bookings, or null. */
+function bookingFind(int $id): ?array {
+    return fetchOne('SELECT * FROM appointments WHERE id=? AND tenant_id=?', [$id, tenantId()]);
+}
 
 if ($method === 'GET') {
     $status = $_GET['status'] ?? '';
@@ -16,8 +22,8 @@ if ($method === 'GET') {
     $limit  = 20;
     $offset = ($page - 1) * $limit;
 
-    $where  = ['1=1'];
-    $params = [];
+    $where  = ['a.tenant_id=?'];
+    $params = [$tid];
 
     if ($status) { $where[] = 'a.status=?'; $params[] = $status; }
     if ($search) { $where[] = '(a.full_name LIKE ? OR a.email LIKE ? OR a.phone LIKE ?)'; $s = "%{$search}%"; $params = array_merge($params,[$s,$s,$s]); }
@@ -55,7 +61,7 @@ if ($method === 'GET') {
         echo json_encode(['success'=>false,'error'=>'That date or time is not valid.']); exit;
     }
 
-    $appt = fetchOne('SELECT * FROM appointments WHERE id=?', [$id]);
+    $appt = bookingFind($id);
     if (!$appt) { http_response_code(404); echo json_encode(['success'=>false,'error'=>'Booking not found.']); exit; }
 
     // Keep the appointment exactly as long as it was — the guest booked a
@@ -67,8 +73,8 @@ if ($method === 'GET') {
     $newStart = new DateTime($date . ' ' . $t->format('H:i:s'));
     $newEnd   = (clone $newStart)->modify("+{$minutes} minutes");
 
-    query('UPDATE appointments SET appointment_date=?, start_time=?, end_time=? WHERE id=?',
-          [$newStart->format('Y-m-d'), $newStart->format('H:i:s'), $newEnd->format('H:i:s'), $id]);
+    query('UPDATE appointments SET appointment_date=?, start_time=?, end_time=? WHERE id=? AND tenant_id=?',
+          [$newStart->format('Y-m-d'), $newStart->format('H:i:s'), $newEnd->format('H:i:s'), $id, $tid]);
 
     echo json_encode([
         'success' => true,
@@ -84,12 +90,13 @@ if ($method === 'GET') {
     if (!$id || !in_array($status, $allowed)) {
         echo json_encode(['success'=>false,'error'=>'Invalid data']); exit;
     }
+    if (!bookingFind($id)) { http_response_code(404); echo json_encode(['success'=>false,'error'=>'Booking not found.']); exit; }
 
-    query('UPDATE appointments SET status=? WHERE id=?', [$status, $id]);
+    query('UPDATE appointments SET status=? WHERE id=? AND tenant_id=?', [$status, $id, $tid]);
 
     // Send SMS on status change
-    $appt    = fetchOne('SELECT * FROM appointments WHERE id=?', [$id]);
-    $service = fetchOne('SELECT * FROM services WHERE id=?', [$appt['service_id']]);
+    $appt    = bookingFind($id);
+    $service = fetchOne('SELECT * FROM services WHERE id=? AND tenant_id=?', [$appt['service_id'], $tid]);
     $s       = settings();
     $biz     = $s['business_name'] ?? 'Diamond Nail & Spa';
 
@@ -103,8 +110,9 @@ if ($method === 'GET') {
     $type = $raw['type'] ?? 'reminder';
     if (!$id) { echo json_encode(['success'=>false,'error'=>'Missing id']); exit; }
 
-    $appt    = fetchOne('SELECT * FROM appointments WHERE id=?', [$id]);
-    $service = fetchOne('SELECT * FROM services WHERE id=?', [$appt['service_id']]);
+    $appt    = bookingFind($id);
+    if (!$appt) { http_response_code(404); echo json_encode(['success'=>false,'error'=>'Booking not found.']); exit; }
+    $service = fetchOne('SELECT * FROM services WHERE id=? AND tenant_id=?', [$appt['service_id'], $tid]);
     $s       = settings();
     $biz     = $s['business_name'] ?? 'Diamond Nail & Spa';
 
@@ -117,7 +125,7 @@ if ($method === 'GET') {
 
     $result = sendSMS($appt['phone'], $msg, $id, $type);
     if ($result['success'] && $type === 'reminder') {
-        query('UPDATE appointments SET sms_reminder_sent=1 WHERE id=?', [$id]);
+        query('UPDATE appointments SET sms_reminder_sent=1 WHERE id=? AND tenant_id=?', [$id, $tid]);
     }
     echo json_encode($result);
 }
