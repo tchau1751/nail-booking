@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 requireRole('manager');
+requireAdminUnlock();   // services, hours and technicians live here too
 $admin = currentAdmin();
 ?>
 <!DOCTYPE html>

@@ -76,6 +76,11 @@ function migratePos(): array {
     addColumn('pos_settings', 'owner_phone',         "VARCHAR(40) DEFAULT ''", $log);
     addColumn('pos_settings', 'license_no',          "VARCHAR(80) DEFAULT ''", $log);
 
+    // The admin password in front of the back-office screens (includes/auth.php).
+    addColumn('pos_settings', 'admin_pin_hash',         'VARCHAR(255) DEFAULT NULL', $log);
+    addColumn('pos_settings', 'admin_pin_fails',        'INT NOT NULL DEFAULT 0', $log);
+    addColumn('pos_settings', 'admin_pin_locked_until', 'DATETIME DEFAULT NULL', $log);
+
     // Till sign-in by PIN: fast switching between people on the one shared
     // tablet. Hashed like a password, never stored in the clear, and locked
     // out after repeated wrong guesses because 4 digits is a small haystack.

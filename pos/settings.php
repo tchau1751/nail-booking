@@ -112,6 +112,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tid,
             ]);
             $msg = 'Kiosk and birthday settings saved.';
+        } elseif (($_POST['action'] ?? '') === 'admin_pin') {
+            if ($why = adminPinChange((string)($_POST['admin_pin_current'] ?? ''),
+                                      (string)($_POST['admin_pin_new'] ?? ''),
+                                      (string)($_POST['admin_pin_repeat'] ?? ''))) {
+                throw new RuntimeException($why);
+            }
+            $msg = 'Admin password changed. Use the new one the next time the admin screens lock.';
         } elseif (($_POST['action'] ?? '') === 'policy') {
             query('UPDATE pos_consent_templates SET title=?, body=? WHERE id=? AND tenant_id=?',
                   [trim($_POST['title']), trim($_POST['body']), (int)$_POST['id'], $tid]);
@@ -136,6 +143,26 @@ $hours = fetchAll('SELECT * FROM business_hours WHERE tenant_id=? ORDER BY weekd
 ?>
 <?php if ($msg): ?><div class="alert alert-ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-err"><?= e($err) ?></div><?php endif; ?>
+
+<div class="card" id="admin-password">
+  <h2>🔒 Admin password</h2>
+  <p class="sub">Asked before Services, Staff, Set-ups, Sales, Reports and the other admin screens, on top of
+     each person's own role. They stay open for <?= ADMIN_UNLOCK_MINUTES ?> minutes after the last admin screen.</p>
+  <?php if (adminPinIsDefault()): ?>
+    <div class="alert alert-err">The admin password is still the starting <?= ADMIN_PIN_DEFAULT ?>, which every salon
+      begins with. Change it now.</div>
+  <?php endif; ?>
+  <form method="post" class="toolbar" style="margin:0">
+    <input type="hidden" name="action" value="admin_pin">
+    <label class="field"><span>Current password</span>
+      <input type="password" name="admin_pin_current" inputmode="numeric" autocomplete="off" required></label>
+    <label class="field"><span>New (4–8 digits)</span>
+      <input type="password" name="admin_pin_new" inputmode="numeric" pattern="[0-9]{4,8}" autocomplete="new-password" required></label>
+    <label class="field"><span>New again</span>
+      <input type="password" name="admin_pin_repeat" inputmode="numeric" pattern="[0-9]{4,8}" autocomplete="new-password" required></label>
+    <button class="btn btn-green" type="submit">Change</button>
+  </form>
+</div>
 
 <div class="card">
   <h2>🏪 Store &amp; owner</h2>

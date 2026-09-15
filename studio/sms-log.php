@@ -9,6 +9,7 @@ $activeNav    = '';
 
 require_once __DIR__ . '/../includes/auth.php';
 requireRole('manager');   // every salon text, with guests' numbers on it
+requireAdminUnlock();
 
 ob_start();
 require_once __DIR__ . '/includes/layout_start.php';

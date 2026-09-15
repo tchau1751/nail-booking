@@ -89,6 +89,11 @@ php tests/tenant_isolation.php --test-database   # a second salon tries to reach
   (`ROLES` in `includes/auth.php`). A page sets `$requireRole` *before* including
   `layout_start.php` — one that forgets is treated as manager-only. JSON endpoints
   use `requireRoleJson()`. Actions inside a page re-check with `hasRole()`.
+- **Admin password**: back-office screens (`ADMIN_LOCKED_PAGES` in `includes/auth.php`)
+  also need the salon's admin password, which starts as 1111. A new back-office
+  page goes into that list; a page outside `pos/` calls `requireAdminUnlock()`, and
+  its JSON endpoints `requireAdminUnlockJson()`. It is a second lock, never a
+  substitute for the role check.
 - **Discounts, custom prices, lower prices** need `managerApproved()` on the server.
 - **PINs**: once a salon registers any device, a PIN only works on a registered
   device (`pinBlockedHere()`).

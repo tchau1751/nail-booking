@@ -31,8 +31,9 @@ const TENANT_TABLES = [
  *   3  five roles; technician logins linked to their technician
  *   4  registered devices; each sale remembers the station that rang it up
  *   5  the platform: its own admins and audit log
+ *   6  each salon's admin password in front of the back-office screens
  */
-const TENANCY_VERSION = 5;
+const TENANCY_VERSION = 6;
 
 // Refuse any query on a salon's table that never mentions tenant_id. A missed
 // query then fails in front of whoever is testing it, instead of quietly

@@ -30,6 +30,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !posCsrfValid($_POST['_csrf'] ?? nu
     exit;
 }
 
+// Back-office screens also need the salon's admin password, on top of the role
+// above: a till left signed in as the owner should not open Staff for whoever
+// walks up. A new back-office screen goes into ADMIN_LOCKED_PAGES.
+if (in_array(basename($_SERVER['SCRIPT_NAME'], '.php'), ADMIN_LOCKED_PAGES, true)) {
+    requireAdminUnlock();
+}
+
 // The whole page is buffered so layout_end can drop the token into every form.
 ob_start();
 
@@ -101,7 +108,9 @@ $stationName = ($station && (int)$station['is_active'] === 1 && (int)$station['t
 $navFront = ['register', 'queue', 'clients', 'sales', 'rewards'];
 $navPrimary = array_intersect_key($navItems, array_flip($navFront));
 $navRest    = array_diff_key($navItems, $navPrimary);
-$restActive = isset($navRest[$activeNav]);
+// Everything past the front five is the back office, behind the admin password.
+$restActive = isset($navRest[$activeNav]) || $activeNav === 'admin';
+$adminOpen  = $navRest && adminUnlocked();
 ?>
   <nav class="topnav">
     <?php foreach ($navPrimary as $key => [$icon, $label, $href]): ?>
@@ -111,10 +120,17 @@ $restActive = isset($navRest[$activeNav]);
     <?php endforeach; ?>
     <?php if ($navRest): ?>
       <details class="navmore">
-        <summary class="<?= $restActive ? 'active' : '' ?>">
-          <span class="ico">☰</span><span class="lbl">More</span>
+        <summary class="<?= $restActive ? 'active' : '' ?>"
+                 title="<?= $adminOpen ? 'The admin screens are open' : 'The admin screens ask for the admin password' ?>">
+          <span class="ico"><?= $adminOpen ? '🔓' : '🔒' ?></span><span class="lbl">Admin</span>
         </summary>
         <div class="navmore-panel">
+          <?php if ($adminOpen): ?>
+            <form method="post" action="<?= BASE_PATH ?>/pos/unlock.php" style="margin:0 0 6px">
+              <input type="hidden" name="action" value="lock">
+              <button class="btn btn-light btn-sm" type="submit" style="width:100%">🔒 Lock the admin screens</button>
+            </form>
+          <?php endif; ?>
           <?php foreach ($navRest as $key => [$icon, $label, $href]): ?>
             <a href="<?= BASE_PATH ?>/pos/<?= $href ?>" class="<?= $activeNav === $key ? 'active' : '' ?>">
               <span class="ico"><?= $icon ?></span><span><?= $label ?></span>

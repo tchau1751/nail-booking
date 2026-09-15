@@ -180,6 +180,12 @@ query('UPDATE pos_clients SET birthday=CURDATE(), marketing_opt_in=1, birthday_s
 $dueB = array_map('intval', array_column(birthdayTextsDue(), 'id'));
 check('birthday texts list only B\'s guests',  in_array((int)$sharedPhone['id'], $dueB, true) && !in_array((int)$clientA['id'], $dueB, true));
 
+// Admin password: B's own opens B, and nothing it does reaches A's.
+$adminHashA = fetchOne('SELECT admin_pin_hash FROM pos_settings WHERE tenant_id=? ORDER BY id LIMIT 1', [$A])['admin_pin_hash'] ?? null;
+query('UPDATE pos_settings SET admin_pin_hash=?, admin_pin_fails=0, admin_pin_locked_until=NULL WHERE tenant_id=?',
+      [password_hash('2468', PASSWORD_DEFAULT), $B]);
+check('B\'s admin password opens B',           adminUnlock('2468') === null && adminUnlocked());
+
 $preview = purgeAllPreview(['clients' => true, 'giftcards' => true]);
 purgeAll(['clients' => true, 'giftcards' => true, 'bookings' => true]);
 check('B\'s reset cleared B\'s sales',         (int)fetchOne('SELECT COUNT(*) n FROM pos_sales WHERE tenant_id=?', [$B])['n'] === 0);
@@ -194,6 +200,10 @@ check('A\'s client points are unchanged',      (int)clientFind((int)$clientA['id
 check('A cannot see B\'s client',              clientFind((int)$sharedPhone['id']) === null);
 check('A\'s queue has no B walk-in',           !in_array($checkinId, array_map('intval', array_column(waitingList(), 'id')), true));
 check('A\'s manager PIN works in A',           (managerByPin('9731')['id'] ?? 0) == $managerA['id']);
+check('B\'s admin unlock does not open A',     !adminUnlocked());
+check('B\'s admin password does not open A',   adminPinCheck('2468') !== null);
+query('UPDATE pos_settings SET admin_pin_fails=0 WHERE tenant_id=?', [$A]);   // that wrong try was the test's own
+check('A\'s admin password is untouched',      (fetchOne('SELECT admin_pin_hash FROM pos_settings WHERE tenant_id=? ORDER BY id LIMIT 1', [$A])['admin_pin_hash'] ?? null) === $adminHashA);
 $bookingNow = bookingFind((int)$bookingA['id']);
 check('A\'s booking did not move',             $bookingNow && $bookingNow['start_time'] === $bookingA['start_time']
                                                && $bookingNow['appointment_date'] === $bookingA['appointment_date']

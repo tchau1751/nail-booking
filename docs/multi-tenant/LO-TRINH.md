@@ -17,6 +17,7 @@ Sau mỗi bước ứng dụng vẫn chạy được và salon hiện tại vẫ
 | 6 | *Run many salons from one platform page* | Super Admin, gói Basic/Pro/Enterprise, giới hạn |
 | 7 | *Bring in the day calendar…* + *Keep the day calendar and birthday texts to one salon* | Gộp 3 commit từ GitHub; lịch kéo-thả, đổi lịch hẹn, tin nhắn sinh nhật chỉ trong salon |
 | 8 | *Put stamp cards, points and gift cards under one Rewards tab* | Tab Rewards; nút Rewards trên Register có thẻ tem của khách |
+| 9 | *Put the back office behind an admin password* | Admin password (bắt đầu 1111), mở 15 phút, sai 5 lần khoá 15 phút |
 
 ---
 
@@ -155,6 +156,19 @@ Nguyên tắc cốt lõi:
 - Trao thưởng tem chỉ ghi nhận, **không tự trừ tiền** trên phiếu — giảm giá vẫn cần Manager duyệt như cũ.
 - Không đổi database; tem, điểm, gift card đang có giữ nguyên.
 - Sửa lỗ hổng: tên khách trong ô tìm khách trên Register được in dạng chữ (tên do khách gõ ở kiosk).
+
+### Bước 9 — Admin password cho khu quản trị ✅
+- Tab **☰ More** đổi thành **🔒 Admin**. Các màn quản trị (Services, Products, Staff, Devices, Settings, Sales,
+  Refund, Reports, Payroll, Expenses, Marketing, Feedback, Designs, Reset), trang admin đặt lịch cũ và SMS log
+  cần thêm **Admin password** — là lớp khoá thêm, không thay phân quyền.
+- Mỗi salon một mật khẩu, lưu dạng mã hoá (`pos_settings.admin_pin_hash`). Bắt đầu là **1111**; Settings báo đỏ
+  cho tới khi đổi. Mật khẩu mới 4–8 số, phải nhập đúng mật khẩu cũ, không được đặt lại 1111.
+- Mở khoá **15 phút** tính từ màn admin cuối cùng; nút **🔒 Lock the admin screens** khoá ngay; đăng nhập lại
+  cũng khoá. Mở ở salon này không mở sang salon khác.
+- Sai **5 lần** liền → khoá 15 phút, kể cả khi nhập đúng.
+- Quên mật khẩu: **Owner** nhập mật khẩu đăng nhập của mình để đưa về 1111, rồi đổi mới ngay.
+- Database lên phiên bản tenancy **6** (tự nâng cấp ở request đầu tiên).
+- Test cô lập thêm 4 kiểm tra (mật khẩu salon B không mở salon A): 40 kiểm tra.
 
 ---
 

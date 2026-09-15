@@ -2,6 +2,7 @@
 header('Content-Type: application/json');
 require_once __DIR__ . '/../includes/auth.php';
 requireRoleJson('manager');
+requireAdminUnlockJson();
 
 $today  = date('Y-m-d');
 $month  = date('Y-m');

@@ -268,6 +268,16 @@ function migrateTenancyLocked(array &$log): void {
         KEY idx_ip_action (ip, action, created_at)
     ) ENGINE=InnoDB");
 
+    // Each salon's admin password in front of the back-office screens: null
+    // until the owner picks one (it starts as ADMIN_PIN_DEFAULT), with the
+    // wrong tries in a row and the lockout they earn. A database the till has
+    // not been installed on yet gets these from migratePos() instead.
+    if (tableExists('pos_settings')) {
+        addColumn('pos_settings', 'admin_pin_hash',         'VARCHAR(255) DEFAULT NULL', $log);
+        addColumn('pos_settings', 'admin_pin_fails',        'INT NOT NULL DEFAULT 0', $log);
+        addColumn('pos_settings', 'admin_pin_locked_until', 'DATETIME DEFAULT NULL', $log);
+    }
+
     // Only call it done once sign-in itself can work. On a database whose
     // booking tables have not been imported yet, try again next request.
     if (tableExists('admin_users') && columnExists('admin_users', 'tenant_id')) {

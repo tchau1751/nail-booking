@@ -3,6 +3,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/plans.php';
 requireRoleJson('manager');
+requireAdminUnlockJson();
 
 $method = $_SERVER['REQUEST_METHOD'];
 $tid    = tenantId();
