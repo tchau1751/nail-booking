@@ -332,7 +332,7 @@ const ADMIN_PIN_LOCK_MINUTES = 15;
 
 /** The till's back-office screens, by file name. install.php stays open so a new salon can set up. */
 const ADMIN_LOCKED_PAGES = ['settings', 'staff', 'devices', 'services', 'products', 'expenses', 'marketing',
-                            'reports', 'payroll', 'sales', 'refund', 'reset', 'feedback', 'lookbook'];
+                            'reports', 'endofday', 'payroll', 'sales', 'refund', 'reset', 'feedback', 'lookbook'];
 
 /** This salon's row: the hash (null until set), wrong tries in a row, and any lockout. */
 function adminPinRow(): ?array {

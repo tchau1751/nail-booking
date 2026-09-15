@@ -66,6 +66,7 @@ $navAdmin = !$isManager ? [] : [
     'devices'   => ['📱', 'Devices',   'pos/devices.php'],
     'sales'     => ['🧾', 'Sales',     'pos/sales.php'],
     'reports'   => ['📊', 'Reports',   'pos/reports.php'],
+    'endofday'  => ['🧮', 'End of day', 'pos/endofday.php'],
     'payroll'   => ['💵', 'Payroll',   'pos/payroll.php'],
     'marketing' => ['📣', 'Marketing', 'pos/marketing.php'],
     'feedback'  => ['⭐', 'Feedback',  'pos/feedback.php'],

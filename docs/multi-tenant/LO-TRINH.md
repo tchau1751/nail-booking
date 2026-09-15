@@ -20,6 +20,7 @@ Sau mỗi bước ứng dụng vẫn chạy được và salon hiện tại vẫ
 | 9 | *Put the back office behind an admin password* | Admin password (bắt đầu 1111), mở 15 phút, sai 5 lần khoá 15 phút |
 | 10 | *Name the top tabs the way nail salons already know them* | SIGN-IN LIST · CHECKOUT · GIFT-CARD · APPOINTMENT · CUSTOMER · ADMIN; "Hi" + chức vụ |
 | 11 | *Split one ticket across card, cash, Zelle and more* | Màn thanh toán nhiều hình thức + bàn phím số; Payment methods trong Settings |
+| 12 | *Close the day on one page* | Báo cáo End of day: phiếu theo từng thợ, tiền thợ, tổng theo hình thức, tiền két |
 
 ---
 
@@ -192,6 +193,16 @@ Nguyên tắc cốt lõi:
   Gift card có mã vẫn dùng ở **Rewards → Gift card** (có kiểm tra số dư), không gõ tay ở màn thanh toán.
 - Hoá đơn, danh sách Sales và báo cáo hiện tên hình thức (Zelle, Venmo…).
 - Database lên phiên bản tenancy **7**: `pos_payments.method` thành chữ, thêm `pos_settings.payment_methods`.
+
+### Bước 12 — Báo cáo End of day ✅
+- **ADMIN → 🧮 End of day** (có cả nút trong Reports): chọn ngày, ‹ › sang ngày trước/sau, **In** và **CSV**.
+- Thanh tổng: Service sales, Product sales, Gift card sales, Discounts, Tax, Tips, **Total collected**.
+- Thanh theo hình thức: Credit card, Cash, Zelle, Venmo… (hiện cả khi $0), Points / Gift card nếu có, Change given,
+  Refunds, và **Cash in the drawer** — tiền mặt phải có trong két.
+- Mỗi thợ một bảng: Ticket, dịch vụ/sản phẩm, Price, Discount, (Refunded), (Supply fee), Tech earns, Tip (tip tiền mặt
+  có ghi "cash"); dòng **payout** = commission − supply fee + wage + card tips, ghi riêng cash tips đã đưa tận tay.
+- Tiền thợ tính **đúng công thức Payroll**, tiền két **đúng công thức Reports** — test so khớp từng cent với hai trang đó.
+- Báo đỏ nếu tổng các khoản thu trừ tiền thối không bằng tổng các phiếu. Phiếu void không tính (có ghi số lượng).
 
 ---
 

@@ -181,6 +181,7 @@ if (($_GET['export'] ?? '') === 'csv') {
   <a class="btn btn-light" href="?from=<?= date('Y-m-d', strtotime('monday this week')) ?>&to=<?= date('Y-m-d') ?>">This week</a>
   <a class="btn btn-light" href="?from=<?= date('Y-m-01') ?>&to=<?= date('Y-m-d') ?>">This month</a>
   <a class="btn btn-light" href="?from=<?= e($from) ?>&to=<?= e($to) ?>&export=csv">⬇ CSV</a>
+  <a class="btn btn-light" href="<?= BASE_PATH ?>/pos/endofday.php?date=<?= e($to) ?>">🧮 End of day</a>
   <button class="btn btn-blue" type="button" onclick="window.print()">🖨 Print / PDF</button>
 </form>
 

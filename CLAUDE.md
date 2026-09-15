@@ -14,7 +14,7 @@ One installation serves **many salons** (tenants) from one database.
 |---|---|---|
 | Public booking site | `index.php?salon=<slug>`, `api/book.php`, `api/slots.php`, `api/services.php`, `api/technicians.php`, `assets/js/public.js` | none |
 | Booking admin (older) | `admin/` (and `admin/calendar-standalone.php`, the drag-and-drop day calendar), `api/admin_*.php`, `api/calendar.php`, `api/appointments.php`, `api/reschedule.php`, `api/updateappointment.php`; changing a booking goes through `includes/bookings.php` | email + password |
-| The till (POS) | `pos/` — top tabs (in `pos/includes/layout_start.php`): SIGN-IN LIST `queue.php` · CHECKOUT `index.php` · GIFT-CARD `giftcards.php`/`stamps.php`/`points.php` · APPOINTMENT `appointments.php` (frames the day calendar) · CUSTOMER `clients.php` · ADMIN menu (services, staff, settings, sales, reports, payroll…, behind the admin password) | PIN or email |
+| The till (POS) | `pos/` — top tabs (in `pos/includes/layout_start.php`): SIGN-IN LIST `queue.php` · CHECKOUT `index.php` · GIFT-CARD `giftcards.php`/`stamps.php`/`points.php` · APPOINTMENT `appointments.php` (frames the day calendar) · CUSTOMER `clients.php` · ADMIN menu (services, staff, settings, sales, reports, `endofday.php`, payroll…, behind the admin password) | PIN or email |
 | POS logic | `pos/includes/pos.php` (cart, checkout, refund, void), `rewards.php` (gift cards, points, stamp cards, birthday texts), `salon.php` (clients, queue, turns), `purge.php` |
 | Platform (Super Admin) | `platform/` — every salon, plans, suspension | its own login |
 | Tenancy | `includes/tenant.php` (which salon, the guard), `includes/schema.php` (migration), `includes/plans.php`, `includes/devices.php`, `includes/platform.php` |
