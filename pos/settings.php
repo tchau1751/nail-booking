@@ -346,7 +346,7 @@ $hours = fetchAll('SELECT * FROM business_hours WHERE tenant_id=? ORDER BY weekd
     </label>
 
     <hr style="border:none;border-top:1px solid var(--line);margin:8px 0 18px">
-    <h3 style="font-size:16px;margin-bottom:8px">🎂 Automatic birthday texts</h3>
+    <h3 id="birthdays" style="font-size:16px;margin-bottom:8px">🎂 Automatic birthday texts</h3>
     <p class="sub">Guests can add their birthday at the kiosk — day and month only, never the year.
        One text per guest per year, and only to those who opted in.</p>
     <label class="field"><span>Message</span>
@@ -357,10 +357,24 @@ $hours = fetchAll('SELECT * FROM business_hours WHERE tenant_id=? ORDER BY weekd
       Send birthday texts automatically
     </label>
     <p class="sub">
-      This needs a daily scheduled task on the shop PC:<br>
+      This needs a daily scheduled task on the server — one task covers every salon on it:<br>
       <code>D:\xampp\php\php.exe <?= e(str_replace('/', '\\', dirname(__DIR__))) ?>\cron\send_birthday_sms.php</code><br>
-      Test it safely first — <a href="<?= BASE_PATH ?>/cron/send_birthday_sms.php?dry=1" target="_blank" rel="noopener">dry run (sends nothing)</a>.
+      Test it safely first — <a href="?birthdays=today#birthdays">see who would get a text today (sends nothing)</a>.
     </p>
+    <?php if (isset($_GET['birthdays'])): $birthdaysDue = birthdayTextsDue(); ?>
+      <div class="alert alert-ok" style="margin-bottom:16px">
+        <?php if (!$birthdaysDue): ?>
+          No guest is due a birthday text today.
+        <?php else: ?>
+          <strong><?= count($birthdaysDue) ?> guest<?= count($birthdaysDue) === 1 ? '' : 's' ?> due a text today<?= birthdayTextsOn() ? '' : ', once birthday texts are switched on' ?>:</strong>
+          <ul style="margin:6px 0 0 18px">
+            <?php foreach ($birthdaysDue as $guest): ?>
+              <li><?= e($guest['full_name']) ?> · <?= e($guest['phone']) ?> — “<?= e($guest['body']) ?>”</li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
     <button class="btn btn-green" type="submit">Save kiosk &amp; birthday settings</button>
   </form>
 </div>

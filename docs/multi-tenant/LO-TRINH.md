@@ -15,6 +15,7 @@ Sau mỗi bước ứng dụng vẫn chạy được và salon hiện tại vẫ
 | 4 | *Give the salon five roles…* | Owner → Manager → Front Desk → Cashier → Technician |
 | 5 | *Register each till and tablet…* | Thiết bị / trạm POS |
 | 6 | *Run many salons from one platform page* | Super Admin, gói Basic/Pro/Enterprise, giới hạn |
+| 7 | *Bring in the day calendar…* + *Keep the day calendar and birthday texts to one salon* | Gộp 3 commit từ GitHub; lịch kéo-thả, đổi lịch hẹn, tin nhắn sinh nhật chỉ trong salon |
 
 ---
 
@@ -124,6 +125,21 @@ Nguyên tắc cốt lõi:
 - Manager thấy thông báo *past due* / *trial*.
 - Nhật ký `platform_audit` cho mọi thay đổi.
 - Super Admin đầu tiên chỉ tạo được bằng dòng lệnh.
+
+### Bước 7 — Gộp 3 commit từ GitHub, giữ trong salon ✅
+- Gộp `origin/master`: lịch theo ngày kéo-thả, `api/reschedule.php`, sửa lịch hẹn, `technician_id` trên lịch.
+  Bỏ file rỗng `studio` (trùng tên với thư mục `studio/`).
+- Lịch theo ngày chuyển vào `admin/calendar-standalone.php` (đường dẫn `../includes/` mới đúng).
+  Chỉ Front Desk trở lên; chỉ thợ, dịch vụ, lịch hẹn của salon đang đăng nhập.
+- `api/update-appointment.php` → `api/updateappointment.php`: đúng tên trang lịch gọi và tên file trên máy chủ.
+- Đổi lịch dùng chung `includes/bookings.php`: lịch hẹn và thợ phải thuộc salon. Trùng giờ chỉ tính
+  cùng thợ (hoặc lịch chưa gán thợ) như trang đặt lịch — không chặn cả salon vì một khách khác cùng giờ.
+- Sửa 2 lỗ hổng trong trang tải lên: tên khách (gõ từ trang đặt lịch) được in dạng chữ, không còn chạy
+  được mã HTML/JS; `?date=` được kiểm tra trước khi in ra trang.
+- Tin nhắn sinh nhật `cron/send_birthday_sms.php` (trước chỉ nằm ở máy chính, chưa có trong git):
+  chạy lần lượt từng salon, chỉ từ dòng lệnh (`--dry-run` để thử). Manager xem trước danh sách hôm nay
+  trong **Settings → Automatic birthday texts** — không gửi gì.
+- Test cô lập thêm 8 kiểm tra (đổi lịch, thợ, trùng giờ, sinh nhật): 36 kiểm tra.
 
 ---
 

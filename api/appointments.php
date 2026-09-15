@@ -2,16 +2,12 @@
 header('Content-Type: application/json');
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/sms.php';
+require_once __DIR__ . '/../includes/bookings.php';
 
 requireRoleJson('front_desk');
 
 $method = $_SERVER['REQUEST_METHOD'];
 $tid    = tenantId();
-
-/** One of this salon's bookings, or null. */
-function bookingFind(int $id): ?array {
-    return fetchOne('SELECT * FROM appointments WHERE id=? AND tenant_id=?', [$id, tenantId()]);
-}
 
 if ($method === 'GET') {
     $status = $_GET['status'] ?? '';

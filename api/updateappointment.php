@@ -1,8 +1,9 @@
 <?php
 // ============================================================
-//  Drag-and-drop on the day calendar: a booking moves to a new
-//  day, time and technician. The end follows the service's length.
-//  Quiet, like the booking admin's drag — no text to the guest.
+//  The day calendar's edit box: a booking's time (same day),
+//  technician or status. Quiet — no text to the guest; the booking
+//  admin's status buttons are the ones that send one.
+//  No hyphen in the name, matching the file on the server.
 // ============================================================
 header('Content-Type: application/json');
 require_once __DIR__ . '/../includes/auth.php';
@@ -19,22 +20,24 @@ $raw = json_decode(file_get_contents('php://input'), true);
 $raw = is_array($raw) ? $raw : [];
 
 $id = filter_var($raw['appointment_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-if (!$id || empty($raw['new_date']) || empty($raw['new_time'])) {
-    echo json_encode(['success' => false, 'error' => 'Missing required fields']);
+if (!$id) {
+    echo json_encode(['success' => false, 'error' => 'Missing appointment_id']);
     exit;
 }
 
-$changes = ['date' => $raw['new_date'], 'time' => $raw['new_time']];
-if (!empty($raw['technician_id'])) $changes['technician_id'] = $raw['technician_id'];
+$changes = [];
+if (!empty($raw['new_time']))     $changes['time'] = $raw['new_time'];
+if (isset($raw['technician_id'])) $changes['technician_id'] = $raw['technician_id'] ?: null;
+if (!empty($raw['status']))       $changes['status'] = $raw['status'];
 
 try {
     bookingUpdate($id, $changes);
-    echo json_encode(['success' => true, 'message' => 'Appointment rescheduled']);
+    echo json_encode(['success' => true, 'message' => 'Appointment updated']);
 } catch (InvalidArgumentException $e) {
     http_response_code(422);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Throwable $e) {
-    error_log('api/reschedule.php: ' . $e->getMessage());
+    error_log('api/updateappointment.php: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Reschedule failed. Please try again.']);
+    echo json_encode(['success' => false, 'error' => 'Update failed. Please try again.']);
 }

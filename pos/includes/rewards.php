@@ -206,3 +206,47 @@ function pointsLog(int $clientId, string $type, int $points, string $note = '', 
            VALUES (?,?,?,?,?,?,?)', [tenantId(), $clientId, $saleId, $type, $points, $after, $note]);
     return $after;
 }
+
+/* ── Birthday texts ──────────────────────────────────────────
+   One text per guest per year, only to guests who opted in. The
+   daily job (cron/send_birthday_sms.php) sends them salon by salon;
+   Settings shows a manager today's list before anything goes out.
+*/
+
+function birthdayTextsOn(): bool {
+    return (int)(posSettings()['birthday_sms_enabled'] ?? 0) === 1;
+}
+
+/** This salon's guests due a birthday text today, each with its message written out as 'body'. */
+function birthdayTextsDue(): array {
+    $rows = fetchAll(
+        "SELECT id, full_name, phone, points
+         FROM pos_clients
+         WHERE tenant_id = ?
+           AND is_active = 1
+           AND marketing_opt_in = 1
+           AND phone <> ''
+           AND birthday IS NOT NULL
+           AND DAY(birthday)   = DAY(CURDATE())
+           AND MONTH(birthday) = MONTH(CURDATE())
+           AND (birthday_sms_year IS NULL OR birthday_sms_year < ?)
+         ORDER BY full_name",
+        [tenantId(), (int)date('Y')]
+    );
+    $template = posSettings()['birthday_sms_text'] ?? 'Happy birthday {name}!';
+    $salon    = settings()['business_name'] ?? '';
+    return array_map(function (array $c) use ($template, $salon) {
+        $c['body'] = strtr($template, [
+            '{name}'   => explode(' ', trim($c['full_name']))[0],
+            '{salon}'  => $salon,
+            '{points}' => (string)(int)$c['points'],
+        ]);
+        return $c;
+    }, $rows);
+}
+
+/** The text went out: nothing more for this guest until next year. */
+function birthdayTextSent(int $clientId): void {
+    query('UPDATE pos_clients SET birthday_sms_year=? WHERE id=? AND tenant_id=?',
+          [(int)date('Y'), $clientId, tenantId()]);
+}

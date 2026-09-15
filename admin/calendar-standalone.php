@@ -1,16 +1,28 @@
 <?php
+// ============================================================
+//  Day calendar — one column per technician. Drag a booking to
+//  move it, tap it to change the time or status, "+ New" to book.
+//  Standalone (no admin chrome), for a tablet at the front desk.
+//
+//  Everything on it is the signed-in salon's own: its technicians,
+//  its menu, its bookings. Moves go through api/reschedule.php and
+//  api/updateappointment.php, which check the salon again.
+// ============================================================
 header('Content-Type: text/html; charset=utf-8');
 require_once __DIR__ . '/../includes/auth.php';
-require_once __DIR__ . '/../includes/db.php';
 
-// Require login - this is an admin calendar
-requireLogin();
+requireRole('front_desk');   // the same people who can open the booking calendar
 
-$date = $_GET['date'] ?? date('Y-m-d');
-$dateObj = DateTime::createFromFormat('Y-m-d', $date) ?: new DateTime();
+$asked   = is_string($_GET['date'] ?? null) ? $_GET['date'] : '';
+$dateObj = DateTime::createFromFormat('!Y-m-d', $asked);
+if (!$dateObj || $dateObj->format('Y-m-d') !== $asked) $dateObj = new DateTime('today');
+$date = $dateObj->format('Y-m-d');
+$prev = (clone $dateObj)->modify('-1 day')->format('Y-m-d');
+$next = (clone $dateObj)->modify('+1 day')->format('Y-m-d');
 
-$technicians = fetchAll('SELECT id, name FROM technicians WHERE is_active = 1 ORDER BY display_order, name');
-$services = fetchAll('SELECT id, name, duration_minutes FROM services WHERE is_active = 1 ORDER BY display_order, name');
+$tid         = tenantId();
+$technicians = fetchAll('SELECT id, name FROM technicians WHERE tenant_id = ? AND is_active = 1 ORDER BY display_order, name', [$tid]);
+$services    = fetchAll('SELECT id, name, duration_minutes FROM services WHERE tenant_id = ? AND is_active = 1 ORDER BY display_order, name', [$tid]);
 
 $palette = ['#f8b4d8', '#b4d8f8', '#d8b4f8', '#b4f8d8', '#f8d8ae', '#aee0f8'];
 $staffColors = [];
@@ -23,7 +35,7 @@ foreach ($technicians as $i => $t) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Calendar - Diamond Nails</title>
+  <title>Calendar - <?= e(settings()['business_name'] ?? 'Diamond Nails') ?></title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; padding: 10px; }
@@ -104,14 +116,14 @@ foreach ($technicians as $i => $t) {
         <?php foreach ($technicians as $t): ?>
           <div class="cell header" title="<?= e($t['name']) ?>">
             <span class="name-full"><?= e($t['name']) ?></span>
-            <span class="name-short"><?= substr($t['name'], 0, 1) ?></span>
+            <span class="name-short"><?= e(mb_substr($t['name'], 0, 1)) ?></span>
           </div>
         <?php endforeach; ?>
 
         <?php for ($h = 8; $h <= 18; $h++): ?>
           <div class="cell time"><?= date('g A', mktime($h, 0)) ?></div>
           <?php foreach ($technicians as $t): ?>
-            <div class="cell" data-staff="<?= $t['id'] ?>" data-date="<?= $date ?>" data-hour="<?= $h ?>"></div>
+            <div class="cell" data-staff="<?= (int)$t['id'] ?>" data-date="<?= e($date) ?>" data-hour="<?= $h ?>"></div>
           <?php endforeach; ?>
         <?php endfor; ?>
       </div>
@@ -171,7 +183,7 @@ foreach ($technicians as $i => $t) {
           <select id="newService" required>
             <option value="">Select service</option>
             <?php foreach ($services as $s): ?>
-              <option value="<?= $s['id'] ?>"><?= e($s['name']) ?></option>
+              <option value="<?= (int)$s['id'] ?>"><?= e($s['name']) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -180,13 +192,13 @@ foreach ($technicians as $i => $t) {
           <select id="newStaff">
             <option value="">Any</option>
             <?php foreach ($technicians as $t): ?>
-              <option value="<?= $t['id'] ?>"><?= e($t['name']) ?></option>
+              <option value="<?= (int)$t['id'] ?>"><?= e($t['name']) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
         <div class="form-group">
           <label>Date *</label>
-          <input type="date" id="newDate" value="<?= $date ?>" required>
+          <input type="date" id="newDate" value="<?= e($date) ?>" required>
         </div>
         <div class="form-group">
           <label>Time *</label>
@@ -198,15 +210,20 @@ foreach ($technicians as $i => $t) {
   </div>
 
   <script>
-    // API endpoint paths. Filenames match what is deployed on the server
-    // (the FTP upload strips hyphens). Adjust API_BASE if /api is not at the web root.
-    const API_BASE = '/api';
+    // Paths come from the server, so the page works in a subfolder on the shop
+    // PC and at the web root online. updateappointment.php has no hyphen,
+    // matching the file on the server.
+    const API_BASE = <?= json_encode(BASE_PATH . '/api') ?>;
     const API = {
-      calendar:  API_BASE + '/calendar.php',
+      calendar:   API_BASE + '/calendar.php',
       reschedule: API_BASE + '/reschedule.php',
-      update:    API_BASE + '/updateappointment.php',
-      book:      API_BASE + '/book.php'
+      update:     API_BASE + '/updateappointment.php',
+      book:       API_BASE + '/book.php'
     };
+    const DAY   = <?= json_encode($date) ?>;
+    const PREV  = <?= json_encode($prev) ?>;
+    const NEXT  = <?= json_encode($next) ?>;
+    const SALON = <?= json_encode(currentTenant()['slug']) ?>;
 
     let drag = null;
     let currentEditId = null;
@@ -224,8 +241,7 @@ foreach ($technicians as $i => $t) {
     }
 
     function loadAppointments() {
-      const date = '<?= $date ?>';
-      const url = API.calendar + '?start=' + date + '&end=' + date;
+      const url = API.calendar + '?start=' + DAY + '&end=' + DAY;
       fetch(url)
         .then(r => {
           if (!r.ok) throw new Error('HTTP ' + r.status + ' from ' + url);
@@ -241,11 +257,11 @@ foreach ($technicians as $i => $t) {
           data.forEach(apt => {
             if (!apt.start) return;
             const [aptDate, aptTime] = apt.start.split('T');
-            if (aptDate !== date) return;
+            if (aptDate !== DAY) return;
 
             const staffId = apt.extendedProps?.technician_id;
             const [h, m] = aptTime.split(':').map(Number);
-            const cells = document.querySelectorAll(`[data-staff="${staffId}"][data-date="${date}"][data-hour="${h}"]`);
+            const cells = document.querySelectorAll(`[data-staff="${staffId}"][data-date="${DAY}"][data-hour="${h}"]`);
             if (cells.length === 0) return;
 
             const cell = cells[0];
@@ -256,10 +272,15 @@ foreach ($technicians as $i => $t) {
             el.dataset.aptData = JSON.stringify(apt);
             el.style.background = COLORS[staffId] || '#e5e5e5';
             el.style.top = ((m / 60) * 100) + '%';
-            el.innerHTML = `
-              <div class="apt-name">${apt.title.split(' — ')[0]}</div>
-              <div class="apt-time">${aptTime}</div>
-            `;
+
+            // The name was typed by a guest on the booking page: text, never markup.
+            const nameEl = document.createElement('div');
+            nameEl.className = 'apt-name';
+            nameEl.textContent = apt.title.split(' — ')[0];
+            const timeEl = document.createElement('div');
+            timeEl.className = 'apt-time';
+            timeEl.textContent = aptTime;
+            el.append(nameEl, timeEl);
 
             el.addEventListener('dragstart', () => { drag = el; el.classList.add('drag'); });
             el.addEventListener('dragend', () => { drag = null; el.classList.remove('drag'); });
@@ -269,8 +290,7 @@ foreach ($technicians as $i => $t) {
           });
         })
         .catch(e => {
-          status('Could not load appointments — ' + e.message +
-                 '  (check API_BASE at the top of this file)', true);
+          status('Could not load appointments — ' + e.message, true);
           console.error(e);
         });
     }
@@ -311,13 +331,11 @@ foreach ($technicians as $i => $t) {
     });
 
     function navigate(dir) {
-      const d = new Date('<?= $date ?>');
-      d.setDate(d.getDate() + dir);
-      location.href = '?date=' + d.toISOString().split('T')[0];
+      location.href = '?date=' + (dir < 0 ? PREV : NEXT);
     }
 
     function goToday() {
-      location.href = '?date=' + new Date().toISOString().split('T')[0];
+      location.href = location.pathname;   // the server knows the salon's today
     }
 
     function openEditModal(apt) {
@@ -367,6 +385,7 @@ foreach ($technicians as $i => $t) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          salon: SALON,
           full_name: document.getElementById('newName').value,
           email: document.getElementById('newEmail').value,
           phone: document.getElementById('newPhone').value,

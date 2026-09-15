@@ -8,9 +8,10 @@
 //
 //  It WRITES. It creates (or reuses) a second salon, "Isolation Test
 //  Salon", with its own staff, menu, client and sales, rings a sale
-//  there, and runs "Reset everything" on it. It also adds a manager
-//  called "Isolation Manager" to salon 1. Run it on a copy of the
-//  database, never the live one:
+//  there, and runs "Reset everything" on it. In salon 1 it adds a
+//  manager called "Isolation Manager" and a booking for "Isolation
+//  Booking A", and gives the test guest a birthday today. Run it on a
+//  copy of the database, never the live one:
 //
 //    D:\xampp\php\php.exe tests\tenant_isolation.php --test-database
 //
@@ -23,6 +24,7 @@ require 'pos/includes/salon.php';
 require 'pos/includes/rewards.php';
 require 'pos/includes/purge.php';
 require 'includes/schema.php';
+require 'includes/bookings.php';
 // The till keeps open tickets in the session, so the test needs one — and PHP
 // will only open it before anything has been printed.
 startSecureSession();
@@ -74,6 +76,17 @@ $pointsA  = (int)clientFind((int)$clientA['id'])['points'];
 foreach (['ownerA' => $ownerA, 'techA' => $techA, 'serviceA' => $serviceA, 'saleA' => $saleA] as $k => $v) {
     if (!$v) { fwrite(STDERR, "Salon 1 needs at least one $k for this test.\n"); exit(2); }
 }
+
+// A booking in A's diary that nobody is assigned to, and a birthday today for A's test guest.
+$bookingA = fetchOne("SELECT * FROM appointments WHERE tenant_id=? AND email='booking@isolation-a.test' ORDER BY id LIMIT 1", [$A]);
+if (!$bookingA) {
+    query("INSERT INTO appointments (tenant_id, full_name, email, phone, service_id, technician_id, appointment_date, start_time, end_time, status)
+           VALUES (?, 'Isolation Booking A', 'booking@isolation-a.test', '5550001111', ?, NULL, ?, '10:00:00', '10:30:00', 'confirmed')",
+          [$A, $serviceA['id'], date('Y-m-d', strtotime('+1 day'))]);
+    $bookingA = fetchOne('SELECT * FROM appointments WHERE id=? AND tenant_id=?', [db()->lastInsertId(), $A]);
+}
+query('UPDATE pos_clients SET birthday=CURDATE(), marketing_opt_in=1, birthday_sms_year=NULL WHERE id=? AND tenant_id=?',
+      [$clientA['id'], $A]);
 
 // ── Salon B: made for the test ─────────────────────────────────
 $B = (int)(fetchOne("SELECT id FROM tenants WHERE slug='isolation-test'")['id'] ?? 0);
@@ -147,6 +160,26 @@ check('B\'s items are stamped with B',         !unscoped(function () use ($saleI
 check('an unscoped query is refused',          throws(function () { fetchAll('SELECT id FROM pos_sales'); }));
 check('unscoped() lets a deliberate one run',  !throws(function () { unscoped(function () { return fetchAll('SELECT id FROM pos_sales LIMIT 1'); }); }));
 
+// Bookings: B's diary cannot move A's guest, borrow A's technician, or be
+// blocked by A's unassigned booking at the same hour.
+$day = $bookingA['appointment_date'];
+check('A\'s booking id finds nothing',         bookingFind((int)$bookingA['id']) === null);
+check('cannot move A\'s booking',              throws(function () use ($bookingA) { bookingUpdate((int)$bookingA['id'], ['time' => '15:00']); }));
+query("INSERT INTO appointments (tenant_id, full_name, email, phone, service_id, technician_id, appointment_date, start_time, end_time, status)
+       VALUES (?, 'Isolation Booking B2', 'booking2@isolation.test', '5550002223', ?, ?, ?, '12:00:00', '12:30:00', 'confirmed')",
+      [$B, $serviceB['id'], $techB['id'], $day]);
+query("INSERT INTO appointments (tenant_id, full_name, email, phone, service_id, technician_id, appointment_date, start_time, end_time, status)
+       VALUES (?, 'Isolation Booking B', 'booking@isolation.test', '5550002222', ?, ?, ?, '13:00:00', '13:30:00', 'confirmed')",
+      [$B, $serviceB['id'], $techB['id'], $day]);
+$bookingB = (int)db()->lastInsertId();
+check('cannot give B\'s booking A\'s technician', throws(function () use ($bookingB, $techA) { bookingUpdate($bookingB, ['technician_id' => (int)$techA['id']]); }));
+check('A\'s booking does not block B\'s hour',  (bookingUpdate($bookingB, ['time' => '10:00'])['start_time'] ?? '') === '10:00:00');
+check('B\'s own bookings still clash',         throws(function () use ($bookingB) { bookingUpdate($bookingB, ['time' => '12:15']); }));
+query('UPDATE pos_clients SET birthday=CURDATE(), marketing_opt_in=1, birthday_sms_year=NULL WHERE id=? AND tenant_id=?',
+      [$sharedPhone['id'], $B]);
+$dueB = array_map('intval', array_column(birthdayTextsDue(), 'id'));
+check('birthday texts list only B\'s guests',  in_array((int)$sharedPhone['id'], $dueB, true) && !in_array((int)$clientA['id'], $dueB, true));
+
 $preview = purgeAllPreview(['clients' => true, 'giftcards' => true]);
 purgeAll(['clients' => true, 'giftcards' => true, 'bookings' => true]);
 check('B\'s reset cleared B\'s sales',         (int)fetchOne('SELECT COUNT(*) n FROM pos_sales WHERE tenant_id=?', [$B])['n'] === 0);
@@ -161,6 +194,12 @@ check('A\'s client points are unchanged',      (int)clientFind((int)$clientA['id
 check('A cannot see B\'s client',              clientFind((int)$sharedPhone['id']) === null);
 check('A\'s queue has no B walk-in',           !in_array($checkinId, array_map('intval', array_column(waitingList(), 'id')), true));
 check('A\'s manager PIN works in A',           (managerByPin('9731')['id'] ?? 0) == $managerA['id']);
+$bookingNow = bookingFind((int)$bookingA['id']);
+check('A\'s booking did not move',             $bookingNow && $bookingNow['start_time'] === $bookingA['start_time']
+                                               && $bookingNow['appointment_date'] === $bookingA['appointment_date']
+                                               && $bookingNow['technician_id'] === null);
+$dueA = array_map('intval', array_column(birthdayTextsDue(), 'id'));
+check('A\'s birthday list is A\'s own guest',  in_array((int)$clientA['id'], $dueA, true) && !in_array((int)$sharedPhone['id'], $dueA, true));
 
 echo "\n" . ($failures ? "$failures check(s) FAILED\n" : "All checks passed\n");
 exit($failures ? 1 : 0);
