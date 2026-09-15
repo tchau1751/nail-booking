@@ -293,7 +293,7 @@ $hours = fetchAll('SELECT * FROM business_hours WHERE tenant_id=? ORDER BY weekd
 </div>
 
 <div class="card">
-  <h2>⭐ Rewards &amp; feedback</h2>
+  <h2 id="rewards">⭐ Rewards &amp; feedback</h2>
   <p class="sub">Points are earned on services and retail, never on tax, tips or gift card purchases.</p>
   <form method="post">
     <input type="hidden" name="action" value="loyalty">

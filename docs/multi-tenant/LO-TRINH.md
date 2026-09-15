@@ -16,6 +16,7 @@ Sau mỗi bước ứng dụng vẫn chạy được và salon hiện tại vẫ
 | 5 | *Register each till and tablet…* | Thiết bị / trạm POS |
 | 6 | *Run many salons from one platform page* | Super Admin, gói Basic/Pro/Enterprise, giới hạn |
 | 7 | *Bring in the day calendar…* + *Keep the day calendar and birthday texts to one salon* | Gộp 3 commit từ GitHub; lịch kéo-thả, đổi lịch hẹn, tin nhắn sinh nhật chỉ trong salon |
+| 8 | *Put stamp cards, points and gift cards under one Rewards tab* | Tab Rewards; nút Rewards trên Register có thẻ tem của khách |
 
 ---
 
@@ -140,6 +141,20 @@ Nguyên tắc cốt lõi:
   chạy lần lượt từng salon, chỉ từ dòng lệnh (`--dry-run` để thử). Manager xem trước danh sách hôm nay
   trong **Settings → Automatic birthday texts** — không gửi gì.
 - Test cô lập thêm 8 kiểm tra (đổi lịch, thợ, trùng giờ, sinh nhật): 36 kiểm tra.
+
+### Bước 8 — Rewards: thẻ tem, điểm, gift card một chỗ ✅
+- Thanh menu: tab 🎫 Stamps và 🎁 Gift cards gộp thành **🎁 Rewards** (Front Desk trở lên), có tab con
+  Stamp cards · Points · Gift cards (Manager) · Settings (Manager). Link cũ `stamps.php`, `giftcards.php` vẫn chạy.
+- Trang **Points** mới (`pos/points.php`): tổng điểm khách đang giữ và giá trị bằng tiền, khách nhiều điểm
+  nhất, điểm cộng/đổi 30 ngày, lịch sử gần đây.
+- Màn **Register**: nút ⭐ Points và 🎁 Gift card gộp thành một nút **🎁 Rewards** (rộng 2 ô), mở hộp 3 tab:
+  - 🎫 **Stamp card** — thẻ tem của khách, phần thưởng đang chờ, nút **Hand over reward**
+    (Front Desk trở lên; Cashier chỉ xem). Nút Rewards hiện 🎉 khi khách có thẻ đầy.
+  - ⭐ **Points** và 🎁 **Gift card** — như trước.
+- Dòng khách trên phiếu hiện `⭐ 250 pts · 🎫 3/10`.
+- Trao thưởng tem chỉ ghi nhận, **không tự trừ tiền** trên phiếu — giảm giá vẫn cần Manager duyệt như cũ.
+- Không đổi database; tem, điểm, gift card đang có giữ nguyên.
+- Sửa lỗ hổng: tên khách trong ô tìm khách trên Register được in dạng chữ (tên do khách gõ ở kiosk).
 
 ---
 

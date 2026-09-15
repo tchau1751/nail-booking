@@ -7,7 +7,7 @@
 //  unclaimed reward is never silently spent.
 // ============================================================
 $pageTitle = 'Stamp Cards';
-$activeNav = 'stamps';
+$activeNav = 'rewards';   // Rewards tab → Stamp cards
 $requireRole = 'front_desk';
 require_once __DIR__ . '/includes/layout_start.php';
 require_once __DIR__ . '/includes/rewards.php';

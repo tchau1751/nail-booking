@@ -286,6 +286,21 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
   padding:14px 16px;border-top:1px solid var(--line);}
 .ticket-actions .btn{min-height:52px;}
 .ticket-actions .pay{grid-column:1 / -1;}
+/* Rewards stands in for the old Gift card and Points buttons, so it takes two
+   cells: a whole row on the two-column grid, two of three on the narrow one. */
+.ticket-actions .rewards{grid-column:span 2;}
+#mRewards [hidden]{display:none !important;}   /* .btn sets display, which beats [hidden] */
+.rw-tabs{margin-top:0;}
+.rw-ready{background:rgba(31,157,85,.1);border:1px solid var(--green);border-radius:12px;
+  padding:12px 14px;margin-bottom:12px;font-weight:700;}
+.rw-dots{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px;}
+.rw-dot{width:38px;height:38px;border-radius:50%;border:2px solid var(--gold);color:var(--gold);
+  display:flex;align-items:center;justify-content:center;font-weight:800;}
+.rw-dot.on{background:var(--gold);color:#fff;}
+/* The strip of sub-tabs under the Rewards tab, on its three screens. */
+.subtabs{order:0;padding:0 0 14px;margin:0 0 16px;}
+.subtabs .tab{text-decoration:none;color:var(--ink);}
+.subtabs .tab.active{color:#fff;}
 
 /* ── Short screens: protect the Charge button ─────────────────
    Many salon tablets are only 600-800px tall in landscape. Rather

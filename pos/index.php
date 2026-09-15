@@ -159,10 +159,12 @@ $tipPresets = array_filter(array_map('trim', explode(',', posSettings()['tip_pre
   </div>
 
   <div class="ticket-actions">
+    <!-- The stamp card, points and gift cards sit behind one button: they answer
+         the same question — what is this guest owed? — and the ticket needs the
+         room. The badge shows when a full stamp card is waiting. -->
+    <button class="btn btn-light rewards" type="button" id="btnRewards">🎁 Rewards<span class="rw-badge" id="rewardsBadge" hidden></span></button>
     <button class="btn btn-light" type="button" id="btnDiscount">％ Discount</button>
     <button class="btn btn-light" type="button" id="btnTip">💛 Tip</button>
-    <button class="btn btn-light" type="button" id="btnGift">🎁 Gift card</button>
-    <button class="btn btn-light" type="button" id="btnPoints">⭐ Points</button>
     <button class="btn btn-light" type="button" id="btnClear">🗑 Clear</button>
     <button class="btn btn-light" type="button" id="btnHold" title="Park this ticket in the browser">⏸ Hold</button>
     <button class="btn btn-green btn-lg pay" type="button" id="btnPay" disabled>Charge —</button>
@@ -241,46 +243,61 @@ $tipPresets = array_filter(array_map('trim', explode(',', posSettings()['tip_pre
   </div>
 </div>
 
-<div class="modal" id="mGift">
+<!-- Rewards: the guest's stamp card, their points and gift cards, a tab each. -->
+<div class="modal" id="mRewards">
   <div class="modal-box">
-    <h3>Gift cards</h3>
-    <h4 style="font-size:14px;color:var(--ink-soft);margin-bottom:8px">Pay with a card</h4>
-    <div style="display:flex;gap:10px;align-items:flex-end">
-      <label class="field" style="flex:1"><span>Card code</span>
-        <input type="text" id="giftCode" placeholder="ABCD-1234-EFGH-5678" autocomplete="off"></label>
-      <button class="btn btn-green" type="button" id="giftApply" style="margin-bottom:12px">Apply</button>
+    <h3>🎁 Rewards <span id="rewardsWho" style="font-weight:500;color:var(--ink-soft)"></span></h3>
+    <div class="chips rw-tabs" id="rewardsTabs">
+      <button class="chip" type="button" data-rw="stamps">🎫 Stamp card</button>
+      <button class="chip" type="button" data-rw="points">⭐ Points</button>
+      <button class="chip" type="button" data-rw="gift">🎁 Gift card</button>
     </div>
-    <div id="giftApplied"></div>
-    <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
-    <h4 style="font-size:14px;color:var(--ink-soft);margin-bottom:8px">Sell a new card</h4>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <label class="field"><span>Amount</span><input type="number" id="giftAmount" step="0.01" inputmode="decimal" placeholder="50.00"></label>
-      <label class="field"><span>For (optional)</span><input type="text" id="giftRecipient" placeholder="Recipient name"></label>
-    </div>
-    <div class="chips" id="giftPresets">
-      <button class="chip" type="button" data-amt="25">$25</button>
-      <button class="chip" type="button" data-amt="50">$50</button>
-      <button class="chip" type="button" data-amt="75">$75</button>
-      <button class="chip" type="button" data-amt="100">$100</button>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-light" type="button" data-close>Close</button>
-      <button class="btn btn-gold" type="button" id="giftSell">Add card to ticket</button>
-    </div>
-  </div>
-</div>
 
-<div class="modal" id="mPoints">
-  <div class="modal-box">
-    <h3>Redeem points</h3>
-    <div id="pointsInfo" class="alert alert-ok" style="font-weight:600"></div>
-    <label class="field"><span>Points to redeem</span>
-      <input type="number" id="pointsInput" inputmode="numeric" step="1" min="0"></label>
-    <div class="chips" id="pointsChips"></div>
-    <div class="modal-actions">
-      <button class="btn btn-light" type="button" data-close>Cancel</button>
-      <button class="btn btn-light" type="button" id="pointsNone">Redeem none</button>
-      <button class="btn btn-green" type="button" id="pointsGo">Apply</button>
+    <div class="rw-panel" data-panel="stamps">
+      <div id="stampCard"></div>
+      <div class="modal-actions">
+        <button class="btn btn-light" type="button" data-close>Close</button>
+        <button class="btn btn-light" type="button" id="stampFindClient">👥 Find client</button>
+        <button class="btn btn-green" type="button" id="stampRedeem">🎉 Hand over reward</button>
+      </div>
+    </div>
+
+    <div class="rw-panel" data-panel="points" hidden>
+      <div id="pointsInfo" class="alert alert-ok" style="font-weight:600"></div>
+      <label class="field"><span>Points to redeem</span>
+        <input type="number" id="pointsInput" inputmode="numeric" step="1" min="0"></label>
+      <div class="chips" id="pointsChips"></div>
+      <div class="modal-actions">
+        <button class="btn btn-light" type="button" data-close>Close</button>
+        <button class="btn btn-light" type="button" id="pointsNone">Redeem none</button>
+        <button class="btn btn-green" type="button" id="pointsGo">Apply</button>
+      </div>
+    </div>
+
+    <div class="rw-panel" data-panel="gift" hidden>
+      <h4 style="font-size:14px;color:var(--ink-soft);margin-bottom:8px">Pay with a card</h4>
+      <div style="display:flex;gap:10px;align-items:flex-end">
+        <label class="field" style="flex:1"><span>Card code</span>
+          <input type="text" id="giftCode" placeholder="ABCD-1234-EFGH-5678" autocomplete="off"></label>
+        <button class="btn btn-green" type="button" id="giftApply" style="margin-bottom:12px">Apply</button>
+      </div>
+      <div id="giftApplied"></div>
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+      <h4 style="font-size:14px;color:var(--ink-soft);margin-bottom:8px">Sell a new card</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <label class="field"><span>Amount</span><input type="number" id="giftAmount" step="0.01" inputmode="decimal" placeholder="50.00"></label>
+        <label class="field"><span>For (optional)</span><input type="text" id="giftRecipient" placeholder="Recipient name"></label>
+      </div>
+      <div class="chips" id="giftPresets">
+        <button class="chip" type="button" data-amt="25">$25</button>
+        <button class="chip" type="button" data-amt="50">$50</button>
+        <button class="chip" type="button" data-amt="75">$75</button>
+        <button class="chip" type="button" data-amt="100">$100</button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-light" type="button" data-close>Close</button>
+        <button class="btn btn-gold" type="button" id="giftSell">Add card to ticket</button>
+      </div>
     </div>
   </div>
 </div>
@@ -327,6 +344,8 @@ $tipPresets = array_filter(array_map('trim', explode(',', posSettings()['tip_pre
     currency: '<?= e(posSettings()['currency_symbol']) ?>',
     tipPresets: <?= json_encode(array_map('floatval', array_values($tipPresets))) ?>,
     minRedeem: <?= (int)(posSettings()['points_min_redeem'] ?? 100) ?>,
+    stampsOn: <?= stampsEnabled() ? 'true' : 'false' ?>,
+    canRedeemStamps: <?= hasRole('front_desk') ? 'true' : 'false' ?>,   // the server checks again
     techs: <?= json_encode(array_map(function ($t) {
       return ['id' => (int)$t['id'], 'name' => $t['name']];
     }, $technicians)) ?>,

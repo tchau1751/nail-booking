@@ -42,15 +42,16 @@ $navMin = [
     'register' => 'cashier',
     'queue'    => 'technician',
     'clients'  => 'front_desk',
-    'stamps'   => 'front_desk',
+    'rewards'  => 'front_desk',
 ];
+// Stamp cards, points and gift cards are one thing to a guest — what coming
+// back earns them — so they share one Rewards tab, with sub-tabs below the bar.
 $navItems  = [
     'register'  => ['💅', 'Register',  'index.php'],
     'queue'     => ['🪑', 'Queue',     'queue.php'],
     'clients'   => ['👥', 'Clients',   'clients.php'],
     'sales'     => ['🧾', 'Sales',     'sales.php'],
-    'stamps'    => ['🎫', 'Stamps',    'stamps.php'],
-    'giftcards' => ['🎁', 'Gift cards','giftcards.php'],
+    'rewards'   => ['🎁', 'Rewards',   'stamps.php'],
     'services'  => ['💅', 'Services',  'services.php'],
     'products'  => ['📦', 'Products',  'products.php'],
     'reports'   => ['📊', 'Reports',   'reports.php'],
@@ -97,7 +98,7 @@ $stationName = ($station && (int)$station['is_active'] === 1 && (int)$station['t
 // behind a sideways swipe nobody thinks to try. The five used all day stay out
 // front; the rest live one tap away under More, which at least announces that
 // there is more.
-$navFront = ['register', 'queue', 'clients', 'sales', 'stamps'];
+$navFront = ['register', 'queue', 'clients', 'sales', 'rewards'];
 $navPrimary = array_intersect_key($navItems, array_flip($navFront));
 $navRest    = array_diff_key($navItems, $navPrimary);
 $restActive = isset($navRest[$activeNav]);
@@ -153,4 +154,22 @@ if (!$fullBleed && hasRole('manager')):
   <div class="alert alert-ok">Trying the <?= e($account['plan_name'] ?? '') ?> plan — the trial ends
     <?= date('F j', strtotime($account['trial_ends_on'])) ?>.</div>
 <?php endif;
-endif; ?>
+endif;
+
+// The Rewards tab is three screens; this strip moves between them. Each screen
+// still checks its own role — the strip only leaves out what would be refused.
+if ($activeNav === 'rewards'):
+    $rewardTabs = [
+        'stamps'    => ['🎫', 'Stamp cards', 'stamps.php',           'front_desk'],
+        'points'    => ['⭐', 'Points',      'points.php',           'front_desk'],
+        'giftcards' => ['🎁', 'Gift cards',  'giftcards.php',        'manager'],
+        'settings'  => ['⚙️', 'Settings',    'settings.php#rewards', 'manager'],
+    ];
+    $rewardHere = basename($_SERVER['SCRIPT_NAME'], '.php'); ?>
+  <nav class="tabs subtabs" aria-label="Rewards">
+    <?php foreach ($rewardTabs as $tabKey => [$tabIcon, $tabLabel, $tabHref, $tabMin]):
+      if (!hasRole($tabMin)) continue; ?>
+      <a class="tab <?= $rewardHere === $tabKey ? 'active' : '' ?>" href="<?= BASE_PATH ?>/pos/<?= $tabHref ?>"><?= $tabIcon ?> <?= $tabLabel ?></a>
+    <?php endforeach; ?>
+  </nav>
+<?php endif; ?>

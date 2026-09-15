@@ -195,10 +195,16 @@
     // is dead weight and the header row needs the width — Remove puts it back.
     $('btnFindClient').hidden = !!cl;
     if (cl) {
-      $('clientPoints').textContent = '⭐ ' + cl.points + ' pts'   // the cash value shows in the Points dialog;
+      // Points and how far round the stamp card; their cash value and the card
+      // itself are in the Rewards dialog.
+      $('clientPoints').textContent = '⭐ ' + cl.points + ' pts' +
+        (POS.stampsOn ? ' · 🎫 ' + cl.card.on_card + '/' + cl.card.per_card : '');
       $('clientLink').href = POS.base + '/pos/client.php?id=' + cl.id;
     }
-    $('btnPoints').disabled = !cl || cl.points < POS.minRedeem;
+    var owed = cl ? cl.card.pending : 0;
+    $('rewardsBadge').hidden = !owed;
+    $('rewardsBadge').textContent = owed ? ' 🎉' + (owed > 1 ? owed : '') : '';
+    if ($('mRewards').classList.contains('open')) paintRewards();
 
     $('custName').textContent = s.meta.customer_name || 'Walk-in';
     var techSel = $('cTech');
@@ -524,7 +530,8 @@
         $('clientResults').innerHTML = r.results.map(function (c) {
           return '<button class="btn btn-light" type="button" data-client="' + c.id + '" ' +
             'style="width:100%;justify-content:space-between;margin-bottom:8px;min-height:56px">' +
-            '<span>' + c.full_name + '<br><small style="font-weight:500;opacity:.7">' + c.phone + '</small></span>' +
+            // Escaped: a guest types their own name at the kiosk.
+            '<span>' + esc(c.full_name) + '<br><small style="font-weight:500;opacity:.7">' + esc(c.phone) + '</small></span>' +
             '<span>⭐ ' + c.points + '</span></button>';
         }).join('');
       }).catch(function () {});
@@ -552,24 +559,6 @@
   });
 
   /* ── Gift cards ───────────────────────────────────────── */
-  $('btnGift').addEventListener('click', function () {
-    $('giftCode').value = '';
-    $('giftAmount').value = '';
-    $('giftRecipient').value = '';
-    paintAppliedCards();
-    open('mGift');
-  });
-
-  function paintAppliedCards() {
-    var cards = state ? state.meta.gift_cards : [];
-    $('giftApplied').innerHTML = !cards.length ? '' : cards.map(function (g) {
-      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;' +
-        'padding:10px 12px;background:#f2f9f4;border-radius:10px;margin-bottom:8px;font-weight:700">' +
-        '<span>' + g.code + '</span><span>−' + fmt(g.amount) + '</span>' +
-        '<button class="btn btn-light btn-sm" type="button" data-drop="' + g.id + '">Remove</button></div>';
-    }).join('');
-  }
-
   $('giftApplied').addEventListener('click', function (ev) {
     var b = ev.target.closest('[data-drop]');
     if (!b) return;
@@ -598,29 +587,135 @@
     if (!(amt > 0)) return toast('Enter the gift card amount.');
     post('add_giftcard', { amount: amt, recipient: $('giftRecipient').value })
       .then(function (s) {
-        close('mGift');
+        close('mRewards');
         render(s);
         toast('Gift card added — the code prints on the receipt.');
       }).catch(function () {});
   });
 
-  /* ── Points ───────────────────────────────────────────── */
-  $('btnPoints').addEventListener('click', function () {
+  function paintAppliedCards() {
+    var cards = state ? state.meta.gift_cards : [];
+    $('giftApplied').innerHTML = !cards.length ? '' : cards.map(function (g) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;' +
+        'padding:10px 12px;background:#f2f9f4;border-radius:10px;margin-bottom:8px;font-weight:700">' +
+        '<span>' + esc(g.code) + '</span><span>−' + fmt(g.amount) + '</span>' +
+        '<button class="btn btn-light btn-sm" type="button" data-drop="' + g.id + '">Remove</button></div>';
+    }).join('');
+  }
+
+  /* Rewards — one dialog with a tab for the stamp card, points and gift cards.
+     A guest on the ticket usually means "what are they owed", so it opens on
+     their stamp card; a walk-in opens on gift cards. */
+  $('btnRewards').addEventListener('click', function () {
+    $('giftCode').value = '';
+    $('giftAmount').value = '';
+    $('giftRecipient').value = '';
+    $('pointsInput').value = (state && state.meta.points_redeem) || '';
+    showRewards(state && state.meta.client ? 'stamps' : 'gift');
+    open('mRewards');
+  });
+
+  $('rewardsTabs').addEventListener('click', function (ev) {
+    var c = ev.target.closest('[data-rw]');
+    if (c) showRewards(c.getAttribute('data-rw'));
+  });
+
+  function showRewards(tab) {
+    document.querySelectorAll('#rewardsTabs [data-rw]').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-rw') === tab);
+    });
+    document.querySelectorAll('#mRewards .rw-panel').forEach(function (p) {
+      p.hidden = p.getAttribute('data-panel') !== tab;
+    });
+    paintRewards();
+  }
+
+  function paintRewards() {
     var cl = state && state.meta.client;
-    if (!cl) return toast('Attach a client first.');
-    var have = cl.points;
-    $('pointsInfo').textContent = cl.name + ' has ' + have + ' points, worth ' + fmt(cl.points_value) +
-      '. Minimum redemption is ' + POS.minRedeem + '.';
-    $('pointsInput').value = state.meta.points_redeem || '';
+    $('rewardsWho').textContent = cl ? '· ' + cl.name : '';
+    paintStampCard(cl);
+    paintPoints(cl);
+    paintAppliedCards();
+  }
+
+  /* Built from text nodes, never markup: client names come from the kiosk. */
+  function paintStampCard(cl) {
+    var box = $('stampCard');
+    box.innerHTML = '';
+    function add(tag, cls, text) {
+      var el = document.createElement(tag);
+      el.className = cls;
+      if (text) el.textContent = text;
+      box.appendChild(el);
+      return el;
+    }
+    $('stampFindClient').hidden = !!cl;
+    $('stampRedeem').hidden = true;
+    if (!cl) {
+      add('div', 'empty', 'Attach a client to see their stamp card.').style.padding = '22px';
+      return;
+    }
+    var card = cl.card;
+    if (!POS.stampsOn) add('div', 'alert alert-err', 'Stamp cards are switched off in Settings — no new stamps are being given.');
+    if (card.pending > 0) {
+      add('div', 'rw-ready', '🎉 ' + card.pending + ' reward' + (card.pending === 1 ? '' : 's') +
+        ' waiting to be claimed: ' + card.reward);
+      if (POS.canRedeemStamps) $('stampRedeem').hidden = false;
+      else add('p', 'sub', 'Ask the front desk or a manager to hand it over.');
+    }
+    var dots = add('div', 'rw-dots');
+    for (var i = 0; i < card.per_card; i++) {
+      var d = document.createElement('span');
+      d.className = 'rw-dot' + (i < card.on_card ? ' on' : '');
+      d.textContent = i < card.on_card ? '✓' : String(i + 1);
+      dots.appendChild(d);
+    }
+    add('p', 'sub', card.on_card + ' of ' + card.per_card + ' on this card · ' +
+      (card.to_next || card.per_card) + ' more for ' + card.reward + '. One stamp per visit, given at checkout.');
+    if (card.pending > 0 && POS.canRedeemStamps) {
+      add('p', 'sub', 'Handing it over records the reward. It does not change this ticket.');
+    }
+  }
+
+  $('stampRedeem').addEventListener('click', function () {
+    var cl = state && state.meta.client;
+    if (!cl || !cl.card.pending) return;
+    if (!confirm('Give ' + cl.name + ' their ' + cl.card.reward + '?')) return;
+    post('redeem_stamp', {})
+      .then(function (s) { render(s); toast('Reward handed over.'); })
+      .catch(function () {});
+  });
+
+  // No guest on the ticket yet: find them first, then open Rewards again.
+  $('stampFindClient').addEventListener('click', function () {
+    close('mRewards');
+    $('btnFindClient').click();
+  });
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+
+  /* ── Points ───────────────────────────────────────────── */
+  function paintPoints(cl) {
+    var have = cl ? cl.points : 0;
+    var can  = !!cl && have >= POS.minRedeem;
+    $('pointsInfo').textContent = !cl ? 'Attach a client to redeem their points.'
+      : cl.name + ' has ' + have + ' points, worth ' + fmt(cl.points_value) +
+        '. Minimum redemption is ' + POS.minRedeem + '.';
     $('pointsInput').max = have;
+    $('pointsInput').disabled = !can;
+    $('pointsGo').disabled = !can;
+    $('pointsNone').disabled = !cl;
     // Offer the whole balance and a couple of round steps below it.
-    var opts = [have, Math.floor(have / 100) * 100, Math.floor(have / 500) * 500]
+    var opts = !can ? [] : [have, Math.floor(have / 100) * 100, Math.floor(have / 500) * 500]
       .filter(function (v, i, a) { return v >= POS.minRedeem && a.indexOf(v) === i; });
     $('pointsChips').innerHTML = opts.map(function (v) {
       return '<button class="chip" type="button" data-pts="' + v + '">' + v + ' pts</button>';
     }).join('');
-    open('mPoints');
-  });
+  }
 
   $('pointsChips').addEventListener('click', function (ev) {
     var c = ev.target.closest('.chip');
@@ -630,14 +725,14 @@
   $('pointsGo').addEventListener('click', function () {
     post('set_points', { points: parseInt($('pointsInput').value || '0', 10) })
       .then(function (s) {
-        close('mPoints');
+        close('mRewards');
         render(s);
         if (s.meta.points_redeem) toast('Redeemed ' + s.meta.points_redeem + ' points.');
       }).catch(function () {});
   });
 
   $('pointsNone').addEventListener('click', function () {
-    post('set_points', { points: 0 }).then(function (s) { close('mPoints'); render(s); });
+    post('set_points', { points: 0 }).then(function (s) { close('mRewards'); render(s); });
   });
 
   /* ── Payment ──────────────────────────────────────────── */

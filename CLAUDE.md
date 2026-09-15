@@ -14,8 +14,8 @@ One installation serves **many salons** (tenants) from one database.
 |---|---|---|
 | Public booking site | `index.php?salon=<slug>`, `api/book.php`, `api/slots.php`, `api/services.php`, `api/technicians.php`, `assets/js/public.js` | none |
 | Booking admin (older) | `admin/` (and `admin/calendar-standalone.php`, the drag-and-drop day calendar), `api/admin_*.php`, `api/calendar.php`, `api/appointments.php`, `api/reschedule.php`, `api/updateappointment.php`; changing a booking goes through `includes/bookings.php` | email + password |
-| The till (POS) | `pos/` — register, queue, clients, sales, reports, payroll, settings, staff, devices… | PIN or email |
-| POS logic | `pos/includes/pos.php` (cart, checkout, refund, void), `rewards.php`, `salon.php` (clients, queue, turns), `purge.php` |
+| The till (POS) | `pos/` — register, queue, clients, sales, rewards (`stamps.php`, `points.php`, `giftcards.php` behind one tab), reports, payroll, settings, staff, devices… | PIN or email |
+| POS logic | `pos/includes/pos.php` (cart, checkout, refund, void), `rewards.php` (gift cards, points, stamp cards, birthday texts), `salon.php` (clients, queue, turns), `purge.php` |
 | Platform (Super Admin) | `platform/` — every salon, plans, suspension | its own login |
 | Tenancy | `includes/tenant.php` (which salon, the guard), `includes/schema.php` (migration), `includes/plans.php`, `includes/devices.php`, `includes/platform.php` |
 | Auth & DB helpers | `includes/auth.php` (sessions, roles, PIN), `includes/db.php` (`query`, `fetchOne`, `fetchAll`, `e`) |

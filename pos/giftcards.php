@@ -1,6 +1,6 @@
 <?php
 $pageTitle = 'Gift Cards';
-$activeNav = 'giftcards';
+$activeNav = 'rewards';     // Rewards tab → Gift cards
 $requireRole = 'manager';   // enforced by layout_start before any output
 require_once __DIR__ . '/includes/layout_start.php';
 require_once __DIR__ . '/includes/rewards.php';

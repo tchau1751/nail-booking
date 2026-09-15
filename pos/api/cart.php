@@ -79,6 +79,7 @@ function ticketPayload(array $extra = []): array {
                 'id' => (int)$client['id'], 'name' => $client['full_name'],
                 'points' => (int)$client['points'],
                 'points_value' => pointsToMoney((int)$client['points']),
+                'card' => stampCard($client),   // on_card, per_card, to_next, pending, reward
             ] : null,
             'tip_method'     => $c['tip_method'] === 'cash' ? 'cash' : 'card',
             'ticket_id'      => cartActiveId(),
@@ -321,6 +322,16 @@ try {
             $c['gift_cards'] = array_values(array_filter($c['gift_cards'], function ($g) {
                 return (int)$g['id'] !== (int)($_POST['id'] ?? 0);
             }));
+            break;
+
+        case 'redeem_stamp':
+            // The same people who hand rewards over on the Rewards tab. It records
+            // the reward; taking the price off the ticket is a discount, which has
+            // its own approval.
+            if (!hasRole('front_desk')) jsonOut(['error' => 'The front desk or a manager hands over stamp rewards.'], 403);
+            $c = &cart();
+            if (!$c['client_id']) jsonOut(['error' => 'Attach a client first.'], 422);
+            stampRedeemReward((int)$c['client_id'], 'Handed over at the register');
             break;
 
         case 'set_points':
