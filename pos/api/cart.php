@@ -354,10 +354,16 @@ try {
         case 'checkout':
             $payments = json_decode($_POST['payments'] ?? '[]', true);
             if (!is_array($payments) || !$payments) jsonOut(['error' => 'No payment entered.'], 422);
+            if (count($payments) > count(PAYMENT_METHODS) + 1) jsonOut(['error' => 'Too many payments on one ticket.'], 422);
             $clean = [];
             foreach ($payments as $p) {
-                $m = in_array($p['method'] ?? '', ['cash','card','gift','other'], true) ? $p['method'] : 'other';
-                $clean[] = ['method' => $m, 'amount' => round((float)($p['amount'] ?? 0), 2), 'reference' => substr(trim($p['reference'] ?? ''), 0, 80)];
+                if (!is_array($p)) jsonOut(['error' => 'That payment could not be read.'], 422);
+                // checkout() decides whether the method is one this salon takes.
+                $clean[] = [
+                    'method'    => preg_replace('/[^a-z]/', '', strtolower((string)($p['method'] ?? ''))),
+                    'amount'    => round((float)($p['amount'] ?? 0), 2),
+                    'reference' => substr(trim((string)($p['reference'] ?? '')), 0, 80),
+                ];
             }
             $saleId = checkout($clean);
             jsonOut(['ok' => true, 'sale_id' => $saleId,

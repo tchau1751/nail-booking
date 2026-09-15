@@ -45,7 +45,7 @@ if (($_GET['export'] ?? '') === 'csv') {
              'Tax', 'Tip', 'Total', 'Refunded', 'Status']];
     foreach ($sales as $row) {
         $csv[] = [$row['sale_no'], $row['created_at'], $row['customer_name'], $row['customer_phone'],
-                  $row['tech_name'], $row['methods'], round((float)$row['subtotal'], 2),
+                  $row['tech_name'], salePaymentLabels($row['methods']), round((float)$row['subtotal'], 2),
                   round((float)$row['discount_total'], 2), round((float)$row['tax_total'], 2),
                   round((float)$row['tip_total'], 2), round((float)$row['grand_total'], 2),
                   round((float)$row['refunded'], 2), $row['status']];
@@ -97,7 +97,7 @@ if (($_GET['export'] ?? '') === 'csv') {
         <td><?= date('m/d g:i A', strtotime($s['created_at'])) ?></td>
         <td><?= e($s['customer_name'] ?: 'Walk-in') ?><?php if ($s['customer_phone']): ?><div style="font-size:12px;color:var(--ink-soft)"><?= e($s['customer_phone']) ?></div><?php endif; ?></td>
         <td><?= e($s['tech_name'] ?: '—') ?></td>
-        <td><?= e($s['methods'] ?: '—') ?></td>
+        <td><?= e(salePaymentLabels($s['methods']) ?: '—') ?></td>
         <td class="num"><?= money($s['tip_total']) ?></td>
         <td class="num"><strong><?= money($s['grand_total']) ?></strong></td>
         <td><span class="pill <?= $s['status'] === 'completed' ? 'pill-ok' : 'pill-void' ?>"><?= e($s['status']) ?></span>

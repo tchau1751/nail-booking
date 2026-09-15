@@ -81,6 +81,9 @@ function migratePos(): array {
     addColumn('pos_settings', 'admin_pin_fails',        'INT NOT NULL DEFAULT 0', $log);
     addColumn('pos_settings', 'admin_pin_locked_until', 'DATETIME DEFAULT NULL', $log);
 
+    // Each salon's payment methods — card, cash, Zelle, Venmo… (includes/schema.php).
+    paymentMethodsAsText($log);
+
     // Till sign-in by PIN: fast switching between people on the one shared
     // tablet. Hashed like a password, never stored in the clear, and locked
     // out after repeated wrong guesses because 4 digits is a small haystack.

@@ -89,7 +89,7 @@ $starAuto = ($_GET['star'] ?? '') === '1';
   <hr>
   <table>
     <?php foreach ($payments as $p): ?>
-      <tr><td><?= ucfirst($p['method']) ?><?= $p['reference'] ? ' (' . e($p['reference']) . ')' : '' ?></td>
+      <tr><td><?= e(paymentLabel($p['method'])) ?><?= $p['reference'] ? ' (' . e($p['reference']) . ')' : '' ?></td>
           <td class="r"><?= money($p['amount']) ?></td></tr>
     <?php endforeach; ?>
     <?php if ($sale['change_due'] > 0): ?>

@@ -419,6 +419,38 @@ function nextSaleNo(): string {
 }
 
 /**
+ * The ways a guest can pay on the payment screen, in the order it lists them.
+ * Each salon switches them on or off under Settings. A gift card with a code
+ * is not one of them: it is applied under Rewards, where its balance is checked.
+ */
+const PAYMENT_METHODS = [
+    'card'     => 'Credit card',
+    'cash'     => 'Cash',
+    'zelle'    => 'Zelle',
+    'venmo'    => 'Venmo',
+    'check'    => 'Check',
+    'giftcert' => 'Gift cert',
+];
+const PAYMENT_METHODS_DEFAULT = 'card,cash,zelle,venmo,giftcert';
+
+/** The salon's payment methods that are switched on, key => label, in screen order. */
+function paymentMethodsOn(?string $csv = null): array {
+    $keys = array_map('trim', explode(',', $csv ?? (string)(posSettings()['payment_methods'] ?? PAYMENT_METHODS_DEFAULT)));
+    return array_intersect_key(PAYMENT_METHODS, array_flip($keys)) ?: ['cash' => PAYMENT_METHODS['cash']];
+}
+
+/** How a stored payment reads on a receipt, the sales list or a report. */
+function paymentLabel(string $method): string {
+    return PAYMENT_METHODS[$method] ?? ['gift' => 'Gift card', 'other' => 'Other'][$method] ?? ucfirst($method);
+}
+
+/** The sales list's "zelle, cash" in words: "Zelle, Cash". */
+function salePaymentLabels(?string $methods): string {
+    if ($methods === null || $methods === '') return '';
+    return implode(', ', array_map('paymentLabel', array_map('trim', explode(',', $methods))));
+}
+
+/**
  * What is already tendered before cash/card: gift cards attached to the
  * ticket, plus any points the guest is spending.
  */
@@ -460,6 +492,27 @@ function checkout(array $payments): int {
 
     $ten  = cartTenders();
     $due  = cartDue();
+
+    // Only the salon's own methods, never a negative amount, and only cash may
+    // come to more than is due: a card or a Zelle for more than the ticket is
+    // money the salon would have to send back.
+    $methods = paymentMethodsOn();
+    $nonCash = 0.0;
+    foreach ($payments as $p) {
+        $amount = (float)($p['amount'] ?? 0);
+        $method = (string)($p['method'] ?? '');
+        if ($amount < 0) throw new RuntimeException('A payment cannot be negative.');
+        if ($amount == 0) continue;
+        if (!isset($methods[$method])) {
+            throw new RuntimeException(($method !== '' ? paymentLabel($method) : 'That payment method')
+                                       . ' is not switched on for this salon.');
+        }
+        if ($method !== 'cash') $nonCash += $amount;
+    }
+    if (round($nonCash, 2) > $due + 0.001) {
+        throw new RuntimeException('Only cash can come to more than the ' . money($due) . ' due. Lower the other amounts.');
+    }
+
     $cashCard = 0.0;
     foreach ($payments as $p) $cashCard += (float)$p['amount'];
     $cashCard = round($cashCard, 2);

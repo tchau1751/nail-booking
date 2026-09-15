@@ -31,6 +31,25 @@ function addColumn(string $t, string $c, string $ddl, array &$log): void {
     db()->exec("ALTER TABLE `$t` ADD COLUMN `$c` $ddl");
     $log[] = "added $t.$c";
 }
+/** The column's type as MySQL reports it, e.g. "enum('cash','card')", or null. */
+function columnType(string $t, string $c): ?string {
+    $r = fetchOne('SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+                   WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?', [dbName(), $t, $c]);
+    return $r['COLUMN_TYPE'] ?? null;
+}
+
+/**
+ * Payment methods are each salon's own list (Zelle, Venmo, a gift certificate),
+ * so a payment's method is text rather than a fixed enum. The default matches
+ * PAYMENT_METHODS_DEFAULT in pos/includes/pos.php.
+ */
+function paymentMethodsAsText(array &$log): void {
+    if (tableExists('pos_payments') && stripos((string)columnType('pos_payments', 'method'), 'enum') === 0) {
+        db()->exec("ALTER TABLE pos_payments MODIFY method VARCHAR(20) NOT NULL DEFAULT 'cash'");
+        $log[] = 'pos_payments.method is text';
+    }
+    addColumn('pos_settings', 'payment_methods', "VARCHAR(120) NOT NULL DEFAULT 'card,cash,zelle,venmo,giftcert'", $log);
+}
 
 /** Unique indexes made of exactly this one column — the ones a per-salon key replaces. */
 function singleColumnUniques(string $t, string $col): array {
@@ -277,6 +296,7 @@ function migrateTenancyLocked(array &$log): void {
         addColumn('pos_settings', 'admin_pin_fails',        'INT NOT NULL DEFAULT 0', $log);
         addColumn('pos_settings', 'admin_pin_locked_until', 'DATETIME DEFAULT NULL', $log);
     }
+    paymentMethodsAsText($log);
 
     // Only call it done once sign-in itself can work. On a database whose
     // booking tables have not been imported yet, try again next request.

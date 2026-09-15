@@ -81,7 +81,9 @@ php tests/tenant_isolation.php --test-database   # a second salon tries to reach
   table outside the migration — it bypasses the guard.
 - **Output** is escaped with `e()`.
 - **Money** is recomputed on the server (`cartTotals()`); the tablet only paints
-  what the server returns.
+  what the server returns. `checkout()` takes a ticket split across the salon's
+  `PAYMENT_METHODS` (switched on in Settings) and refuses a method that is off, a
+  negative amount, and anything but cash coming to more than is due.
 - **CSRF**: every POST to a `pos/` page is checked in `layout_start.php` and the
   token is injected into forms by `layout_end.php`. JSON endpoints call
   `posCsrfValid()` themselves; the platform uses `platformCsrf()`.

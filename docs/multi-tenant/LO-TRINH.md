@@ -19,6 +19,7 @@ Sau mỗi bước ứng dụng vẫn chạy được và salon hiện tại vẫ
 | 8 | *Put stamp cards, points and gift cards under one Rewards tab* | Tab Rewards; nút Rewards trên Register có thẻ tem của khách |
 | 9 | *Put the back office behind an admin password* | Admin password (bắt đầu 1111), mở 15 phút, sai 5 lần khoá 15 phút |
 | 10 | *Name the top tabs the way nail salons already know them* | SIGN-IN LIST · CHECKOUT · GIFT-CARD · APPOINTMENT · CUSTOMER · ADMIN; "Hi" + chức vụ |
+| 11 | *Split one ticket across card, cash, Zelle and more* | Màn thanh toán nhiều hình thức + bàn phím số; Payment methods trong Settings |
 
 ---
 
@@ -179,6 +180,18 @@ Nguyên tắc cốt lõi:
 - Màn Checkout giữ nguyên: ảnh dịch vụ, danh mục ngang.
 - `pos/appointments.php` đặt lịch theo ngày ngay dưới thanh tab, để lễ tân chuyển qua lại giữa các tab.
 - Màn hình hẹp (tablet): giữ tên tab, bỏ icon; màn rất hẹp (điện thoại): chỉ còn icon.
+
+### Bước 11 — Thanh toán chia nhiều hình thức ✅
+- Màn **Take payment** mới: TOTAL DUE, danh sách hình thức (Credit card, Cash, Zelle, Venmo, Check, Gift cert),
+  bàn phím số bên cạnh (C, ⌫, **Rest of it** = điền phần còn thiếu). Chạm một dòng để nhập tiền cho dòng đó.
+- Một phiếu chia được nhiều hình thức, ví dụ Zelle $20 + Cash phần còn lại. Chỉ **Cash** được trả dư (thối tiền);
+  thẻ, Zelle… không được vượt số tiền phải trả.
+- Ô **Reference** cho từng hình thức (4 số cuối thẻ, mã Zelle…). Hai nút **💾 Save** và **🖨 Save & print**.
+- **Settings → 💳 Payment methods**: bật/tắt từng hình thức cho salon (mặc định: Credit card, Cash, Zelle, Venmo, Gift cert).
+- Server kiểm tra lại: hình thức đã tắt, số âm, hình thức không phải tiền mặt vượt số phải trả đều bị từ chối.
+  Gift card có mã vẫn dùng ở **Rewards → Gift card** (có kiểm tra số dư), không gõ tay ở màn thanh toán.
+- Hoá đơn, danh sách Sales và báo cáo hiện tên hình thức (Zelle, Venmo…).
+- Database lên phiên bản tenancy **7**: `pos_payments.method` thành chữ, thêm `pos_settings.payment_methods`.
 
 ---
 

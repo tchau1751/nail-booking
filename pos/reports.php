@@ -139,7 +139,7 @@ if (($_GET['export'] ?? '') === 'csv') {
     $csv[] = [];
 
     $csv[] = ['By payment method', 'Count', 'Amount'];
-    foreach ($byMethod as $m) $csv[] = [$m['method'], (int)$m['c'], round((float)$m['amt'], 2)];
+    foreach ($byMethod as $m) $csv[] = [paymentLabel($m['method']), (int)$m['c'], round((float)$m['amt'], 2)];
     $csv[] = [];
 
     $csv[] = ['By technician', 'Tickets', 'Revenue'];
@@ -211,7 +211,7 @@ if (($_GET['export'] ?? '') === 'csv') {
     <h2>Payment mix</h2>
     <table>
       <?php foreach ($byMethod as $m): ?>
-        <tr><td><?= ucfirst($m['method']) ?> <span style="color:var(--ink-soft)">×<?= (int)$m['c'] ?></span></td>
+        <tr><td><?= e(paymentLabel($m['method'])) ?> <span style="color:var(--ink-soft)">×<?= (int)$m['c'] ?></span></td>
             <td class="num"><?= money($m['amt']) ?></td></tr>
       <?php endforeach; ?>
       <?php if (!$byMethod): ?><tr><td colspan="2" style="color:var(--ink-soft)">No payments yet.</td></tr><?php endif; ?>

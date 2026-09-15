@@ -302,25 +302,43 @@ $tipPresets = array_filter(array_map('trim', explode(',', posSettings()['tip_pre
   </div>
 </div>
 
+<!-- Take payment. One ticket can be split across any of the salon's methods
+     (Settings → Payment methods): tap a row, type its amount on the keypad.
+     Only cash can come to more than is due. -->
 <div class="modal" id="mPay">
-  <div class="modal-box">
-    <h3>Take payment</h3>
-    <div class="amount-display" id="payDue">0.00</div>
-    <!-- Always spelled out here, whatever the ticket panel is showing. -->
-    <div class="totals paybreak" id="payBreak"></div>
-    <div class="chips" id="payMethods">
-      <button class="chip active" type="button" data-m="cash">💵 Cash</button>
-      <button class="chip" type="button" data-m="card">💳 Card</button>
-      <button class="chip" type="button" data-m="gift">🎁 Gift card</button>
-      <button class="chip" type="button" data-m="other">• Other</button>
+  <div class="modal-box paybox">
+    <div class="pay-due" id="payDue">Total due</div>
+    <div class="paygrid">
+      <div>
+        <!-- Always spelled out here, whatever the ticket panel is showing. -->
+        <div class="totals paybreak" id="payBreak"></div>
+        <div class="paylist" id="payList">
+          <?php foreach (paymentMethodsOn() as $key => $label): ?>
+            <div class="payrow" data-m="<?= e($key) ?>">
+              <span class="paytick" title="Tap to take this method off the ticket">✓</span>
+              <span class="payname"><?= e($label) ?></span>
+              <input class="payamt" type="text" readonly inputmode="none" placeholder="0.00" aria-label="<?= e($label) ?> amount">
+            </div>
+          <?php endforeach; ?>
+        </div>
+        <div class="paystatus" id="payStatus"></div>
+        <div class="chips" id="quickCash" hidden></div>
+        <label class="field" id="payRefWrap"><span id="payRefLabel">Reference</span>
+          <input type="text" id="payRef" maxlength="80" autocomplete="off" placeholder="Last 4, auth code… (optional)"></label>
+      </div>
+      <div class="pad paypad" id="payPad">
+        <?php foreach (['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'del'] as $k): ?>
+          <button type="button" data-k="<?= $k ?>"><?= $k === 'del' ? '⌫' : $k ?></button>
+        <?php endforeach; ?>
+        <button type="button" data-k="clear">C</button>
+        <button type="button" data-k="rest" class="wide">Rest of it</button>
+      </div>
     </div>
-    <label class="field"><span>Amount tendered</span><input type="number" id="payAmount" step="0.01" inputmode="decimal"></label>
-    <div class="chips" id="quickCash"></div>
-    <label class="field"><span>Reference (last 4, auth code…)</span><input type="text" id="payRef" placeholder="Optional"></label>
     <div id="payMsg"></div>
     <div class="modal-actions">
       <button class="btn btn-light" type="button" data-close>Cancel</button>
-      <button class="btn btn-green btn-lg" type="button" id="payGo">Complete sale</button>
+      <button class="btn btn-blue btn-lg" type="button" id="payPrint">🖨 Save &amp; print</button>
+      <button class="btn btn-green btn-lg" type="button" id="payGo">💾 Save</button>
     </div>
   </div>
 </div>

@@ -112,6 +112,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tid,
             ]);
             $msg = 'Kiosk and birthday settings saved.';
+        } elseif (($_POST['action'] ?? '') === 'payments') {
+            $picked = array_filter((array)($_POST['methods'] ?? []), 'is_string');
+            $on = array_values(array_intersect(array_keys(PAYMENT_METHODS), $picked));
+            if (!$on) throw new RuntimeException('Keep at least one way to pay switched on.');
+            query('UPDATE pos_settings SET payment_methods=? WHERE tenant_id=?', [implode(',', $on), $tid]);
+            $msg = 'Payment methods saved.';
         } elseif (($_POST['action'] ?? '') === 'admin_pin') {
             if ($why = adminPinChange((string)($_POST['admin_pin_current'] ?? ''),
                                       (string)($_POST['admin_pin_new'] ?? ''),
@@ -423,6 +429,22 @@ $hours = fetchAll('SELECT * FROM business_hours WHERE tenant_id=? ORDER BY weekd
       </form>
     </details>
   <?php endforeach; ?>
+</div>
+
+<div class="card" id="payments">
+  <h2>💳 Payment methods</h2>
+  <p class="sub">What the payment screen offers, in this order. One ticket can be split across several of them;
+     only cash can come to more than is due. A gift card with a code is taken under Rewards, where its balance is checked.</p>
+  <form method="post">
+    <input type="hidden" name="action" value="payments">
+    <div style="display:flex;gap:22px;flex-wrap:wrap;font-weight:700;margin-bottom:16px">
+      <?php $payOn = paymentMethodsOn($s['payment_methods'] ?? null);
+            foreach (PAYMENT_METHODS as $payKey => $payLabel): ?>
+        <label><input type="checkbox" name="methods[]" value="<?= e($payKey) ?>" <?= isset($payOn[$payKey]) ? 'checked' : '' ?>> <?= e($payLabel) ?></label>
+      <?php endforeach; ?>
+    </div>
+    <button class="btn btn-green" type="submit">Save payment methods</button>
+  </form>
 </div>
 
 <div class="card">

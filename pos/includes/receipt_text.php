@@ -75,7 +75,7 @@ function receiptLines(array $sale, array $items, array $payments, array $cards, 
     $add(rtDivider());
 
     foreach ($payments as $p) {
-        $label = ucfirst($p['method']) . ($p['reference'] ? ' (' . $p['reference'] . ')' : '');
+        $label = paymentLabel($p['method']) . ($p['reference'] ? ' (' . $p['reference'] . ')' : '');
         $add(rtRow($label, money($p['amount'])));
     }
     if ($sale['change_due'] > 0) $add(rtRow('Change', money($sale['change_due'])));

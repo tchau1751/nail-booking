@@ -307,6 +307,44 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .subtabs .tab{text-decoration:none;color:var(--ink);}
 .subtabs .tab.active{color:#fff;}
 
+/* ── Take payment ────────────────────────────────────────────
+   One ticket split across the salon's methods, each amount typed on a keypad
+   beside the list, the way salons are used to taking a split. */
+.modal-box.paybox{max-width:860px;}
+.pay-due{font-size:30px;font-weight:700;text-align:center;text-transform:uppercase;letter-spacing:.3px;margin:0 0 12px;}
+.paygrid{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:16px;align-items:start;}
+.paylist{display:flex;flex-direction:column;gap:6px;margin:10px 0 8px;}
+.payrow{display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 10px;border:1px solid var(--line);
+  border-radius:12px;background:#fff;cursor:pointer;}
+.payrow.active{border-color:var(--gold);box-shadow:inset 0 0 0 2px var(--gold);}
+.paytick{flex:0 0 auto;width:26px;height:26px;border-radius:7px;border:2px solid var(--line);color:transparent;
+  display:flex;align-items:center;justify-content:center;font-weight:800;}
+.payrow.on .paytick{background:var(--green);border-color:var(--green);color:#fff;}
+.payname{flex:1;font-weight:600;}
+.payamt{width:120px;text-align:right;font-size:20px;font-weight:700;padding:8px 10px;border:1px solid var(--line);
+  border-radius:10px;background:#fffdf5;cursor:pointer;}
+.paystatus{font-weight:700;text-align:center;padding:9px;border-radius:10px;}
+.paystatus.due{background:#fff4e5;color:#8a5300;}
+.paystatus.ok{background:rgba(31,157,85,.12);color:var(--green);}
+.paystatus.err{background:#fdecec;color:#b42318;}
+.pad.paypad{margin:0;}
+.paypad .wide{grid-column:span 2;}
+#mPay [hidden]{display:none !important;}   /* .field and .chips set display, which beats [hidden] */
+@media (max-width:700px){ .paygrid{grid-template-columns:1fr;} }
+/* An empty ::after is still a flex item: it pushed the total into the middle of its row. */
+.paybreak .grand::after{content:none;}
+/* A 960×600 tablet: tighter rows, and the reference field keeps only its placeholder,
+   so the Save buttons stay on screen without scrolling. */
+@media (max-height:700px){
+  .pay-due{font-size:22px;margin-bottom:6px;}
+  .paylist{gap:4px;margin:6px 0;}
+  .payrow{min-height:38px;padding:3px 8px;}
+  .payamt{font-size:16px;padding:4px 8px;}
+  .paystatus{padding:6px;}
+  .paybreak{padding-bottom:4px;}
+  #payRefWrap > span{display:none;}
+}
+
 /* ── Short screens: protect the Charge button ─────────────────
    Many salon tablets are only 600-800px tall in landscape. Rather
    than let the ticket overflow, the six small buttons get tighter

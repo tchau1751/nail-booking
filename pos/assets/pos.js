@@ -736,39 +736,147 @@
   });
 
   /* ── Payment ──────────────────────────────────────────── */
-  var payMethod = 'cash';
-  $('payMethods').addEventListener('click', function (ev) {
-    var c = ev.target.closest('.chip'); if (!c) return;
-    document.querySelectorAll('#payMethods .chip').forEach(function (x) { x.classList.remove('active'); });
-    c.classList.add('active');
-    payMethod = c.getAttribute('data-m');
-    if (payMethod !== 'cash') $('payAmount').value = state.totals.due.toFixed(2);
+  /* One ticket, split across any of the salon's methods. Tap a row and type its
+     amount on the keypad beside it; the server checks every amount again. */
+  var payActive = null;   // the row the keypad types into
+  var payRefs = {};       // a reference per method: last 4, a Zelle confirmation…
+
+  function payRows() { return Array.prototype.slice.call(document.querySelectorAll('#payList .payrow')); }
+  function payInput(row) { return row.querySelector('.payamt'); }
+  function rowAmt(row) {
+    var v = parseFloat(payInput(row).value);
+    return row.classList.contains('on') && isFinite(v) && v > 0 ? Math.round(v * 100) / 100 : 0;
+  }
+  function payTaken() { return payRows().reduce(function (sum, r) { return sum + rowAmt(r); }, 0); }
+  function money2(n) { return (Math.round(n * 100) / 100).toFixed(2); }
+
+  function setRowOn(row, on) {
+    row.classList.toggle('on', on);
+    if (!on) { payInput(row).value = ''; row.classList.remove('active'); }
+  }
+
+  function selectRow(row) {
+    payRows().forEach(function (r) { r.classList.toggle('active', r === row); });
+    payActive = row;
+    if (!row.classList.contains('on')) {
+      setRowOn(row, true);
+      // A method switched on starts with whatever is still owed.
+      var left = state.totals.due - payTaken();
+      payInput(row).value = left > 0.004 ? money2(left) : '';
+    }
+    payInput(row).dataset.fresh = '1';   // the first digit typed replaces the amount
+    var m = row.getAttribute('data-m');
+    $('payRefWrap').hidden = m === 'cash';
+    $('payRefLabel').textContent = 'Reference for ' + row.querySelector('.payname').textContent;
+    $('payRef').value = payRefs[m] || '';
+    paintQuickCash();
+    paintPayStatus();
+  }
+
+  $('payList').addEventListener('click', function (ev) {
+    var row = ev.target.closest('.payrow');
+    if (!row) return;
+    // The tick on a row that is already on takes that method off the ticket.
+    if (ev.target.closest('.paytick') && row.classList.contains('on')) {
+      setRowOn(row, false);
+      if (payActive === row) {
+        payActive = null;
+        var next = payRows().filter(function (r) { return r.classList.contains('on'); })[0];
+        if (next) return selectRow(next);
+      }
+      paintQuickCash();
+      return paintPayStatus();
+    }
+    selectRow(row);
   });
+
+  function padType(k) {
+    if (!payActive) return;
+    var inp = payInput(payActive), v = inp.value;
+    if (inp.dataset.fresh === '1' && /^[0-9.]$/.test(k)) v = '';
+    // An amount the till filled in (Rest of it) is replaced by the next digit, like a prefilled one.
+    inp.dataset.fresh = k === 'rest' ? '1' : '0';
+    if (k === 'del') v = v.slice(0, -1);
+    else if (k === 'clear') v = '';
+    else if (k === 'rest') v = money2(Math.max(0, state.totals.due - (payTaken() - rowAmt(payActive))));
+    else if (k === '.') { if (v.indexOf('.') < 0) v = (v || '0') + '.'; }
+    else if (/^[0-9]$/.test(k)) {
+      if (/\.\d\d$/.test(v) || v.replace('.', '').length >= 7) return;
+      v = (v === '0' ? '' : v) + k;
+    }
+    inp.value = v;
+    paintPayStatus();
+  }
+
+  $('payPad').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-k]');
+    if (b) padType(b.getAttribute('data-k'));
+  });
+
+  // A keyboard works too, for the desktop in the office.
+  document.addEventListener('keydown', function (ev) {
+    if (!$('mPay').classList.contains('open') || ev.target === $('payRef')) return;
+    if (/^[0-9.]$/.test(ev.key)) padType(ev.key);
+    else if (ev.key === 'Backspace') padType('del');
+    else if (ev.key === 'Enter' && !$('payGo').disabled) $('payGo').click();
+    else return;
+    ev.preventDefault();
+  });
+
+  $('payRef').addEventListener('input', function () {
+    if (payActive) payRefs[payActive.getAttribute('data-m')] = this.value;
+  });
+
+  /** Where things stand: still owed, change to hand back, or a mix the server would refuse. */
+  function paintPayStatus() {
+    var due = state.totals.due, taken = payTaken(), other = 0;
+    payRows().forEach(function (r) { if (r.getAttribute('data-m') !== 'cash') other += rowAmt(r); });
+    var left = Math.round((due - taken) * 100) / 100, msg, cls, ok = false;
+    if (other > due + 0.004) { msg = 'Only cash can come to more than the ' + fmt(due) + ' due.'; cls = 'err'; }
+    else if (left > 0.004)   { msg = (taken > 0 ? 'Paid ' + fmt(taken) + ' · ' : '') + 'Still due ' + fmt(left); cls = 'due'; }
+    else if (left < -0.004)  { msg = 'Change ' + fmt(-left); cls = 'ok'; ok = true; }
+    else                     { msg = 'Paid in full'; cls = 'ok'; ok = true; }
+    $('payStatus').textContent = msg;
+    $('payStatus').className = 'paystatus ' + cls;
+    $('payGo').disabled = $('payPrint').disabled = !ok;
+  }
+
+  /** Round notes for the cash row: exact, then the next few up from what cash has to cover. */
+  function paintQuickCash() {
+    var box = $('quickCash');
+    var isCash = !!payActive && payActive.getAttribute('data-m') === 'cash';
+    box.hidden = !isCash;
+    if (!isCash) return;
+    var need = Math.max(0, state.totals.due - (payTaken() - rowAmt(payActive)));
+    var seen = {}, html = '';
+    [need, Math.ceil(need / 5) * 5, Math.ceil(need / 10) * 10, Math.ceil(need / 20) * 20, Math.ceil(need / 50) * 50]
+      .forEach(function (v, i) {
+        v = Math.round(v * 100) / 100;
+        if (v <= 0 || seen[v]) return;
+        seen[v] = 1;
+        html += '<button class="chip" type="button" data-cash="' + v.toFixed(2) + '">' + (i === 0 ? 'Exact ' : '') + fmt(v) + '</button>';
+      });
+    box.innerHTML = html;
+  }
 
   $('btnPay').addEventListener('click', function () {
     if (!state || !state.count) return;
     var due = state.totals.due;
     if (due <= 0) {   // gift cards and/or points already cover it
       $('payGo').disabled = true;
+      $('doneChange').textContent = 'Paid in full';
       post('checkout', { payments: JSON.stringify([{ method: 'other', amount: 0, reference: 'covered' }]) })
         .then(finishSale).catch(function () { $('payGo').disabled = false; });
       return;
     }
-    $('payDue').textContent = 'Due ' + fmt(due);
+    $('payDue').textContent = 'Total due ' + fmt(due);
     paintPayBreak();
-    $('payAmount').value = due.toFixed(2);
-    $('payRef').value = '';
     $('payMsg').innerHTML = '';
-    // Quick cash buttons: exact, then the next few round notes up from the total.
-    var rounds = [due, Math.ceil(due / 5) * 5, Math.ceil(due / 10) * 10, Math.ceil(due / 20) * 20, Math.ceil(due / 50) * 50];
-    var seen = {}, html = '';
-    rounds.forEach(function (v, i) {
-      v = Math.round(v * 100) / 100;
-      if (seen[v]) return;
-      seen[v] = 1;
-      html += '<button class="chip" type="button" data-cash="' + v.toFixed(2) + '">' + (i === 0 ? 'Exact ' : '') + fmt(v) + '</button>';
-    });
-    $('quickCash').innerHTML = html;
+    payRefs = {};
+    payActive = null;
+    payRows().forEach(function (r) { setRowOn(r, false); });
+    // The first method (a card, in most salons) starts with the whole amount.
+    if (payRows()[0]) selectRow(payRows()[0]);
     open('mPay');
   });
 
@@ -789,36 +897,42 @@
   }
 
   $('quickCash').addEventListener('click', function (ev) {
-    var c = ev.target.closest('.chip'); if (!c) return;
-    $('payAmount').value = c.getAttribute('data-cash');
+    var c = ev.target.closest('[data-cash]');
+    if (!c || !payActive) return;
+    payInput(payActive).value = c.getAttribute('data-cash');
+    payInput(payActive).dataset.fresh = '1';
+    paintPayStatus();
   });
 
   function finishSale(r) {
-    $('payGo').disabled = false;
+    $('payGo').disabled = $('payPrint').disabled = false;
     close('mPay');
     $('doneReceipt').href = r.receipt_url;
     open('mDone');
     localStorage.removeItem(HOLD_KEY);
   }
 
-  $('payGo').addEventListener('click', function () {
-    var amt = parseFloat($('payAmount').value || '0');
-    if (!(amt > 0)) return toast('Enter the amount taken.');
-    var due = state.totals.due;
-    if (amt + 0.001 < due) {
-      $('payMsg').innerHTML = '<div class="alert alert-err">That is less than the ' + fmt(due) +
-        ' still due. For a split, take one method here and charge the rest on a second ticket.</div>';
-      return;
-    }
-    $('payGo').disabled = true;
-    post('checkout', { payments: JSON.stringify([{ method: payMethod, amount: amt, reference: $('payRef').value }]) })
+  function payNow(print) {
+    var payments = payRows().filter(function (r) { return rowAmt(r) > 0; }).map(function (r) {
+      var m = r.getAttribute('data-m');
+      return { method: m, amount: rowAmt(r), reference: m === 'cash' ? '' : (payRefs[m] || '') };
+    });
+    if (!payments.length) return toast('Enter the amount taken.');
+    var change = Math.max(0, Math.round((payTaken() - state.totals.due) * 100) / 100);
+    // The receipt window has to open on the tap itself, or the browser blocks it.
+    var win = print ? window.open('', '_blank') : null;
+    $('payGo').disabled = $('payPrint').disabled = true;
+    post('checkout', { payments: JSON.stringify(payments) })
       .then(function (r) {
-        var change = payMethod === 'cash' ? Math.max(0, amt - due) : 0;
         $('doneChange').textContent = change > 0 ? 'Change ' + fmt(change) : 'Paid in full';
+        if (win) win.location.href = r.receipt_url;
         finishSale(r);
       })
-      .catch(function () { $('payGo').disabled = false; });
-  });
+      .catch(function () { if (win) win.close(); paintPayStatus(); });
+  }
+
+  $('payGo').addEventListener('click', function () { payNow(false); });
+  $('payPrint').addEventListener('click', function () { payNow(true); });
 
   $('doneNew').addEventListener('click', function () {
     close('mDone');
