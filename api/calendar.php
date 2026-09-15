@@ -8,7 +8,7 @@ $from = $_GET['start'] ?? date('Y-m-01');
 $to   = $_GET['end']   ?? date('Y-m-t');
 
 $rows = fetchAll(
-    "SELECT a.id,a.full_name,a.appointment_date,a.start_time,a.end_time,a.status,
+    "SELECT a.id,a.full_name,a.appointment_date,a.start_time,a.end_time,a.status,a.technician_id,
             s.name AS service_name, t.name AS technician_name
      FROM appointments a
      JOIN services s ON s.id=a.service_id
@@ -36,7 +36,7 @@ $events = array_map(function($r) use ($statusColors) {
         'end'             => $r['appointment_date'] . 'T' . $r['end_time'],
         'backgroundColor' => $color,
         'borderColor'     => $color,
-        'extendedProps'   => ['status' => $r['status']],
+        'extendedProps'   => ['status' => $r['status'], 'technician_id' => $r['technician_id']],
     ];
 }, $rows);
 
