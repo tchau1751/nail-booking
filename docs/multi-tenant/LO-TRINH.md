@@ -18,6 +18,7 @@ Sau mỗi bước ứng dụng vẫn chạy được và salon hiện tại vẫ
 | 7 | *Bring in the day calendar…* + *Keep the day calendar and birthday texts to one salon* | Gộp 3 commit từ GitHub; lịch kéo-thả, đổi lịch hẹn, tin nhắn sinh nhật chỉ trong salon |
 | 8 | *Put stamp cards, points and gift cards under one Rewards tab* | Tab Rewards; nút Rewards trên Register có thẻ tem của khách |
 | 9 | *Put the back office behind an admin password* | Admin password (bắt đầu 1111), mở 15 phút, sai 5 lần khoá 15 phút |
+| 10 | *Name the top tabs the way nail salons already know them* | SIGN-IN LIST · CHECKOUT · GIFT-CARD · APPOINTMENT · CUSTOMER · ADMIN; "Hi" + chức vụ |
 
 ---
 
@@ -169,6 +170,15 @@ Nguyên tắc cốt lõi:
 - Quên mật khẩu: **Owner** nhập mật khẩu đăng nhập của mình để đưa về 1111, rồi đổi mới ngay.
 - Database lên phiên bản tenancy **6** (tự nâng cấp ở request đầu tiên).
 - Test cô lập thêm 4 kiểm tra (mật khẩu salon B không mở salon A): 40 kiểm tra.
+
+### Bước 10 — Thanh tab trên cùng quen thuộc với salon ✅
+- Tab mới (chữ in hoa, mỗi tab một ô): **SIGN-IN LIST** (hàng chờ) · **CHECKOUT** (Register) · **GIFT-CARD**
+  (Manager vào Gift cards, Front Desk vào thẻ tem) · **APPOINTMENT** (lịch theo ngày) · **CUSTOMER** · **🔒 ADMIN**.
+- Tab ADMIN gom các màn quản trị; **Sales** và **SMS log** chuyển vào đây.
+- Góc phải: **Hi** + chức vụ (Owner, Manager…), **không hiện tên**; nút **Exit** để đăng xuất.
+- Màn Checkout giữ nguyên: ảnh dịch vụ, danh mục ngang.
+- `pos/appointments.php` đặt lịch theo ngày ngay dưới thanh tab, để lễ tân chuyển qua lại giữa các tab.
+- Màn hình hẹp (tablet): giữ tên tab, bỏ icon; màn rất hẹp (điện thoại): chỉ còn icon.
 
 ---
 

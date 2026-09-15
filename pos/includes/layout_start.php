@@ -43,36 +43,35 @@ ob_start();
 $pageTitle = $pageTitle ?? 'POS';
 $activeNav = $activeNav ?? '';
 $fullBleed = $fullBleed ?? false;   // register screen fills the viewport, no page scroll
-// The least trusted role that sees each screen. Anything not listed is a
-// manager's screen; each page enforces the same minimum with $requireRole.
-$navMin = [
-    'register' => 'cashier',
-    'queue'    => 'technician',
-    'clients'  => 'front_desk',
-    'rewards'  => 'front_desk',
+// The top bar uses the tabs salons know from other nail POS systems, so moving
+// over needs no retraining: icon, label, link from the site root, and the least
+// trusted role that sees the tab. Each page still enforces its own $requireRole.
+$isManager = hasRole('manager');
+$navTabs = [
+    'queue'       => ['🪑', 'Sign-in list', 'pos/queue.php',        'technician'],
+    'register'    => ['💅', 'Checkout',     'pos/index.php',        'cashier'],
+    // Gift cards, stamp cards and points. The front desk cannot open gift
+    // cards, so for them the tab opens on the stamp cards.
+    'rewards'     => ['🎁', 'Gift-card',    $isManager ? 'pos/giftcards.php' : 'pos/stamps.php', 'front_desk'],
+    'appointment' => ['📅', 'Appointment',  'pos/appointments.php', 'front_desk'],
+    'clients'     => ['👥', 'Customer',     'pos/clients.php',      'front_desk'],
 ];
-// Stamp cards, points and gift cards are one thing to a guest — what coming
-// back earns them — so they share one Rewards tab, with sub-tabs below the bar.
-$navItems  = [
-    'register'  => ['💅', 'Register',  'index.php'],
-    'queue'     => ['🪑', 'Queue',     'queue.php'],
-    'clients'   => ['👥', 'Clients',   'clients.php'],
-    'sales'     => ['🧾', 'Sales',     'sales.php'],
-    'rewards'   => ['🎁', 'Rewards',   'stamps.php'],
-    'services'  => ['💅', 'Services',  'services.php'],
-    'products'  => ['📦', 'Products',  'products.php'],
-    'reports'   => ['📊', 'Reports',   'reports.php'],
-    'payroll'   => ['💵', 'Payroll',   'payroll.php'],
-    'marketing' => ['📣', 'Marketing', 'marketing.php'],
-    'feedback'  => ['⭐', 'Feedback',  'feedback.php'],
-    'lookbook'  => ['🎨', 'Designs',   'lookbook.php'],
-    'settings'  => ['⚙️', 'Settings',  'settings.php'],
-    'staff'     => ['👤', 'Staff',     'staff.php'],
-    'devices'   => ['📱', 'Devices',   'devices.php'],
+$navTabs = array_filter($navTabs, function ($t) { return hasRole($t[3]); });
+// Everything else is the back office: a manager's, behind the admin password.
+$navAdmin = !$isManager ? [] : [
+    'services'  => ['💅', 'Services',  'pos/services.php'],
+    'products'  => ['📦', 'Products',  'pos/products.php'],
+    'staff'     => ['👤', 'Staff',     'pos/staff.php'],
+    'settings'  => ['⚙️', 'Settings',  'pos/settings.php'],
+    'devices'   => ['📱', 'Devices',   'pos/devices.php'],
+    'sales'     => ['🧾', 'Sales',     'pos/sales.php'],
+    'reports'   => ['📊', 'Reports',   'pos/reports.php'],
+    'payroll'   => ['💵', 'Payroll',   'pos/payroll.php'],
+    'marketing' => ['📣', 'Marketing', 'pos/marketing.php'],
+    'feedback'  => ['⭐', 'Feedback',  'pos/feedback.php'],
+    'lookbook'  => ['🎨', 'Designs',   'pos/lookbook.php'],
+    'smslog'    => ['💬', 'SMS log',   'studio/sms-log.php'],
 ];
-foreach ($navItems as $k => $v) {
-    if (!hasRole($navMin[$k] ?? 'manager')) unset($navItems[$k]);
-}
 // Which station this is, when it is one of the salon's registered devices —
 // with two tills side by side, staff need to see which one they are on.
 $station = deviceFromCookie();
@@ -100,27 +99,21 @@ $stationName = ($station && (int)$station['is_active'] === 1 && (int)$station['t
 <header class="topbar">
   <div class="brand">💎 <span>Diamond POS</span></div>
 <?php
-// Fifteen screens will not fit across a tablet's top bar — on the salon's own
-// device the strip needs 1544px and has 575, so ten of them sat off the edge
-// behind a sideways swipe nobody thinks to try. The five used all day stay out
-// front; the rest live one tap away under More, which at least announces that
-// there is more.
-$navFront = ['register', 'queue', 'clients', 'sales', 'rewards'];
-$navPrimary = array_intersect_key($navItems, array_flip($navFront));
-$navRest    = array_diff_key($navItems, $navPrimary);
-// Everything past the front five is the back office, behind the admin password.
-$restActive = isset($navRest[$activeNav]) || $activeNav === 'admin';
-$adminOpen  = $navRest && adminUnlocked();
+// Five tabs for the day's work and Admin for the back office. Fifteen screens
+// will not fit across a tablet's bar, so the back office folds into one menu
+// and nothing hides behind a sideways swipe.
+$adminActive = isset($navAdmin[$activeNav]) || $activeNav === 'admin';
+$adminOpen   = $navAdmin && adminUnlocked();
 ?>
   <nav class="topnav">
-    <?php foreach ($navPrimary as $key => [$icon, $label, $href]): ?>
-      <a href="<?= BASE_PATH ?>/pos/<?= $href ?>" class="<?= $activeNav === $key ? 'active' : '' ?>">
+    <?php foreach ($navTabs as $key => [$icon, $label, $href]): ?>
+      <a href="<?= BASE_PATH ?>/<?= $href ?>" class="<?= $activeNav === $key ? 'active' : '' ?>">
         <span class="ico"><?= $icon ?></span><span class="lbl"><?= $label ?></span>
       </a>
     <?php endforeach; ?>
-    <?php if ($navRest): ?>
+    <?php if ($navAdmin): ?>
       <details class="navmore">
-        <summary class="<?= $restActive ? 'active' : '' ?>"
+        <summary class="<?= $adminActive ? 'active' : '' ?>"
                  title="<?= $adminOpen ? 'The admin screens are open' : 'The admin screens ask for the admin password' ?>">
           <span class="ico"><?= $adminOpen ? '🔓' : '🔒' ?></span><span class="lbl">Admin</span>
         </summary>
@@ -131,8 +124,8 @@ $adminOpen  = $navRest && adminUnlocked();
               <button class="btn btn-light btn-sm" type="submit" style="width:100%">🔒 Lock the admin screens</button>
             </form>
           <?php endif; ?>
-          <?php foreach ($navRest as $key => [$icon, $label, $href]): ?>
-            <a href="<?= BASE_PATH ?>/pos/<?= $href ?>" class="<?= $activeNav === $key ? 'active' : '' ?>">
+          <?php foreach ($navAdmin as $key => [$icon, $label, $href]): ?>
+            <a href="<?= BASE_PATH ?>/<?= $href ?>" class="<?= $activeNav === $key ? 'active' : '' ?>">
               <span class="ico"><?= $icon ?></span><span><?= $label ?></span>
             </a>
           <?php endforeach; ?>
@@ -146,14 +139,10 @@ $adminOpen  = $navRest && adminUnlocked();
             style="font-weight:700;font-size:13px;opacity:.85;white-space:nowrap"><?= e($stationName) ?></span>
     <?php endif; ?>
     <span class="clock" id="posClock"></span>
-    <!-- The signed-in name is not shown at the till — it takes room on the
-         tablet's top bar and the guest can see it. It still prints on the
-         receipt as the cashier, and the title below says who is signed in. -->
-    <?php if (hasRole('manager')): ?>
-      <a class="btn btn-ghost" href="<?= BASE_PATH ?>/studio/sms-log.php">SMS log</a>
-    <?php endif; ?>
-    <a class="btn btn-ghost" href="<?= BASE_PATH ?>/admin/logout.php"
-       title="Signed in as <?= e($admin['name'] ?? '') ?> (<?= e(roleLabel($admin['role'] ?? '')) ?>)">Sign out</a>
+    <!-- "Hi" and the role, never the name: the guest can see this screen. The
+         name still prints on the receipt as the cashier. -->
+    <span class="who">Hi <?= e(roleLabel($admin['role'] ?? '')) ?></span>
+    <a class="btn btn-ghost" href="<?= BASE_PATH ?>/admin/logout.php" title="Sign out">Exit</a>
   </div>
 </header>
 

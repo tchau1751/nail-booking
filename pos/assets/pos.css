@@ -71,6 +71,11 @@ a{color:inherit;}
 }
 .topnav a.active,.topnav a:hover{background:rgba(255,255,255,.18); color:#fff;}
 .topnav .ico{font-size:18px;}
+/* Tab names in capitals, each in its own box, the way other nail POS systems
+   draw them, so a salon moving over knows the bar at a glance. */
+.topnav > a,.navmore > summary{border:1px solid rgba(255,255,255,.22);}
+.topnav .lbl{text-transform:uppercase;letter-spacing:.4px;font-size:14px;}
+.topnav > a.active,.navmore > summary.active{background:#fff;color:var(--ink);border-color:#fff;}
 
 /* Everything that does not fit out front. A <details> panel rather than a
    scripted menu: it opens without JavaScript and closes on Escape by itself. */
@@ -368,12 +373,16 @@ tr:last-child td{border-bottom:none;}
 .toolbar .field{margin:0;}
 
 /* ── Narrow tablets / phones: ticket becomes a bottom sheet ─ */
-/* Icons only once the bar gets tight. The five up front are distinct enough
-   to tell apart, and More keeps its word because an icon alone would not say
-   that ten more screens live behind it. */
-@media (max-width:1150px){
-  .topnav > a{padding:0 10px;}
-  .topnav > a .lbl{display:none;}
+/* Once the bar gets tight the tab names stay and the icons go: the names are
+   what a salon moving over recognises. The shop's name goes too — whoever is
+   holding the tablet knows whose salon it is; the diamond stays. */
+@media (max-width:1350px){   /* measured: six names with icons need about 1310px */
+  .topnav{gap:4px;}
+  .topnav > a,.navmore > summary{padding:0 10px;}
+  .topnav > a .ico,.navmore > summary .ico{display:none;}
+  .topnav .lbl{font-size:12px;letter-spacing:.2px;}
+  .brand span{display:none;}
+  .brand{flex:0 0 auto;}
 }
 /* On a narrow tablet the shop's name is the least useful thing in the bar —
    whoever is holding it knows whose salon it is. The diamond stays. */
@@ -404,6 +413,7 @@ tr:last-child td{border-bottom:none;}
   .ticket-actions .btn{min-height:42px;font-size:12px;padding:0 6px;}
   .ticket-actions .pay{grid-column:1 / -1;min-height:56px;font-size:18px;}
   .topnav > a .lbl{display:none;}
+  .topnav > a .ico,.navmore > summary .ico{display:inline;}   /* too narrow for names: icons come back */
   .topright .who,.topright .clock{display:none;}
   .tiles{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));}
 }
