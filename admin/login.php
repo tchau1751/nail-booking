@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="field">
       <label>Email address</label>
       <input type="email" name="email" required autocomplete="email"
-             placeholder="admin@diamondnailspa.com"
+             placeholder="admin@diamondnail.com"
              value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
     </div>
     <div class="field">
@@ -43,7 +43,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <button type="submit" class="btn btn-primary btn-full">Sign in</button>
   </form>
-  <p class="login-hint">💡 Default: admin@diamondnailspa.com / Admin@1234</p>
 </div>
 </body>
 </html>
