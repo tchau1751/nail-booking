@@ -21,6 +21,7 @@ Sau mỗi bước ứng dụng vẫn chạy được và salon hiện tại vẫ
 | 10 | *Name the top tabs the way nail salons already know them* | SIGN-IN LIST · CHECKOUT · GIFT-CARD · APPOINTMENT · CUSTOMER · ADMIN; "Hi" + chức vụ |
 | 11 | *Split one ticket across card, cash, Zelle and more* | Màn thanh toán nhiều hình thức + bàn phím số; Payment methods trong Settings |
 | 12 | *Close the day on one page* | Báo cáo End of day: phiếu theo từng thợ, tiền thợ, tổng theo hình thức, tiền két |
+| 13 | *Bring the Twilio credentials fix onto the multi-salon till* + *Stop the sign-in page printing a password* | Gộp nhánh Twilio; kiểm tra toàn bộ trên bản sao database thật |
 
 ---
 
@@ -204,6 +205,16 @@ Nguyên tắc cốt lõi:
 - Tiền thợ tính **đúng công thức Payroll**, tiền két **đúng công thức Reports** — test so khớp từng cent với hai trang đó.
 - Báo đỏ nếu tổng các khoản thu trừ tiền thối không bằng tổng các phiếu. Phiếu void không tính (có ghi số lượng).
 
+### Bước 13 — Gộp nhánh Twilio và kiểm tra lần cuối ✅
+- Gộp nhánh `claude/beautiful-hermann-*`: `config.php` chỉ còn giá trị mặc định, mọi hằng số có `defined()`;
+  Twilio SID / token để trống trong git — giá trị thật nằm trong **Settings** (được dùng trước) hoặc `config.local.php`.
+- Xoá trang `admin/sms-bookings.php` (gọi bảng `bookings`, `clients` không tồn tại).
+- Trang **SMS test** cần Manager **và** Admin password, như SMS log.
+- Trang đăng nhập admin không còn in email / mật khẩu mặc định dưới form.
+- Kiểm tra trên **bản sao database thật** (`nail_booking_verify`, 33 bảng, 46 phiếu):
+  tự nâng cấp lên tenancy 7 → salon số 1 "Lovely Nail", gói Professional; 46 phiếu, tổng $1,564.80 giữ nguyên;
+  chạy lại `pos/install.php` không thêm cột nào; `tenant_lint` sạch; `tenant_isolation` 40/40.
+
 ---
 
 ## 4. Chạy và kiểm tra
@@ -231,7 +242,9 @@ php tools/create-platform-admin.php you@example.com "Your Name"
    (ghi lại trong PHP error log). Salon hiện có trở thành salon số 1.
 4. Đăng nhập Owner → **Devices**: đăng ký từng máy POS / iPad / kiosk.
 5. Trên máy chủ: `php tools/create-platform-admin.php …` để tạo Super Admin.
-6. Đổi Twilio auth token (token cũ đang nằm trong lịch sử git).
+6. Đổi Twilio auth token (token cũ đang nằm trong lịch sử git), lưu token mới trong **Settings**.
+7. Đăng nhập Owner → **Settings**: đổi Admin password khỏi **1111**.
+8. Chỉ push lên GitHub **sau khi** đã đổi token — commit cũ vẫn chứa token cũ.
 
 ---
 
