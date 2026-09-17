@@ -1,62 +1,46 @@
 <?php
-// Simple SMS testing page - no includes needed for initial display
-session_start();
+// ============================================================
+//  Send one test text, to check the Twilio settings work — after
+//  a new auth token goes in, say. It goes through sendSMS() like
+//  the booking texts do, so it proves the settings they will use,
+//  and it lands in the SMS log alongside them.
+// ============================================================
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/sms.php';
+require_once __DIR__ . '/../pos/includes/pos.php';   // posCsrfToken(), posCsrfValid()
+
+// Texts go to real phones on the salon's account: managers and the owner only.
+requireRole('manager');
+requireAdminUnlock();   // behind the admin password, like the SMS log it writes to
 
 $message = '';
 $success = false;
-
-// Check if logged in by checking session
-if (!isset($_SESSION['admin_id'])) {
-    header('Location: login.php');
-    exit;
-}
+$phone   = trim($_POST['phone'] ?? '');
+$text    = trim($_POST['message'] ?? '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $phone = trim($_POST['phone'] ?? '');
-    $text = trim($_POST['message'] ?? '');
-
-    if (!$phone || !$text) {
+    if (!posCsrfValid($_POST['_csrf'] ?? null)) {
+        http_response_code(419);
+        $message = 'That form went stale, so nothing was sent. Try again.';
+    } elseif ($phone === '' || $text === '') {
         $message = 'Please enter phone number and message.';
     } else {
-        // Twilio credentials from config
-        $accountSid = 'AC3c74634420b61c96ed710cf81a98bc13';
-        $authToken = 'a55bb1e51c386caf4be796a2be2d210a';
-        $fromNumber = '+18559381372';
-
-        // Ensure E.164 format
-        $phone = preg_replace('/[^0-9+]/', '', $phone);
-        if (strpos($phone, '+') !== 0) {
-            $phone = '+1' . substr($phone, -10);
-        }
-
-        // Send via Twilio API
-        $url = "https://api.twilio.com/2010-04-01/Accounts/$accountSid/Messages.json";
-
-        $postData = http_build_query([
-            'From' => $fromNumber,
-            'To' => $phone,
-            'Body' => $text
-        ]);
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
-        curl_setopt($ch, CURLOPT_USERPWD, "$accountSid:$authToken");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode == 201) {
-            $success = true;
-            $message = "SMS sent to $phone successfully!";
-        } else {
-            $data = json_decode($response, true);
-            $message = 'Error: ' . ($data['message'] ?? 'Unknown error');
-        }
+        $r = sendSMS($phone, $text, null, 'custom');
+        $success = $r['success'];
+        $message = $success ? 'SMS sent to ' . normalizePhone($phone) . '.' : 'Error: ' . $r['error'];
     }
+}
+
+// Which place each Twilio value will be taken from, checked in the same order
+// sendSMS() uses. The values themselves never go on the page.
+$s = settings();
+$twilio = [];
+foreach ([
+    'Account SID' => [$s['twilio_account_sid'] ?? '', TWILIO_ACCOUNT_SID],
+    'Auth token'  => [$s['twilio_auth_token']  ?? '', TWILIO_AUTH_TOKEN],
+    'From number' => [$s['twilio_from_number'] ?? '', TWILIO_FROM_NUMBER],
+] as $label => [$saved, $fallback]) {
+    $twilio[$label] = $saved ? 'saved in Settings' : ($fallback ? 'from config.local.php' : 'missing');
 }
 ?>
 <!DOCTYPE html>
@@ -83,8 +67,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .btn-test{width:100%;background:#3a2a24;color:white;padding:11px;border:none;border-radius:22px;font-weight:600;cursor:pointer;font-size:14px;transition:.2s}
         .btn-test:hover{background:#6e4856;transform:translateY(-1px);box-shadow:0 4px 12px rgba(58,42,36,.2)}
         .note{font-size:12px;color:#666;margin-top:8px;line-height:1.4}
-        .info-box{margin-top:24px;padding:16px;background:#f9f9f9;border-radius:8px;font-size:12px;border-left:4px solid #c9947f}
+        .info-box{margin-top:24px;padding:16px;background:#f9f9f9;border-radius:8px;font-size:12px;border-left:4px solid #c9947f;line-height:1.6}
         .info-box strong{color:#3a2a24}
+        .info-box a{color:#6e4856;font-weight:600}
     </style>
 </head>
 <body>
@@ -99,15 +84,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <form method="POST">
+                <input type="hidden" name="_csrf" value="<?= htmlspecialchars(posCsrfToken()) ?>">
+
                 <div class="form-group">
                     <label>Phone Number *</label>
-                    <input type="tel" name="phone" placeholder="+14155552671 or 415-555-2671" required>
+                    <input type="tel" name="phone" value="<?= htmlspecialchars($phone) ?>" placeholder="+14155552671 or 415-555-2671" required>
                     <div class="note">Include country code (+1 for USA)</div>
                 </div>
 
                 <div class="form-group">
                     <label>Test Message *</label>
-                    <textarea name="message" placeholder="Enter your test message..." required></textarea>
+                    <textarea name="message" placeholder="Enter your test message..." required><?= htmlspecialchars($text) ?></textarea>
                     <div class="note">Max 160 characters per SMS</div>
                 </div>
 
@@ -115,9 +102,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </form>
 
             <div class="info-box">
-                <strong>From:</strong> +18559381372<br>
-                <strong>Service:</strong> Twilio<br>
-                <strong>Account:</strong> AC3c74634420b61c96ed710cf81a98bc13
+                <?php foreach ($twilio as $label => $where): ?>
+                    <strong><?= $label ?>:</strong> <?= $where ?><br>
+                <?php endforeach; ?>
+                <a href="<?= BASE_PATH ?>/pos/settings.php">Change them in Settings</a>
             </div>
         </div>
     </div>

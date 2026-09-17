@@ -4,4 +4,6 @@
 *.backup-*
 *.backup
 config/backup/
+
+# Machine-specific settings and secrets — see config/config.php
 config/config.local.php
