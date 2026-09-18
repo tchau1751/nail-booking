@@ -14,13 +14,11 @@ if (!$salon_id) {
 
 require_once __DIR__ . '/../../includes/db.php';
 
-$pdo = db();
-
 // Get salon info
-$salon = $pdo->query(
+$salon = fetchOne(
     "SELECT name FROM business_settings WHERE id = ? LIMIT 1",
     [$salon_id]
-)->fetch();
+);
 
 if (!$salon) {
     http_response_code(404);
@@ -28,16 +26,16 @@ if (!$salon) {
 }
 
 // Get services for this salon
-$services = $pdo->query(
+$services = fetchAll(
     "SELECT id, name, duration FROM services WHERE tenant_id = ? AND active = 1 ORDER BY name",
     [$salon_id]
-)->fetchAll();
+);
 
 // Get technicians
-$technicians = $pdo->query(
+$technicians = fetchAll(
     "SELECT id, name FROM technicians WHERE tenant_id = ? AND active = 1 ORDER BY name",
     [$salon_id]
-)->fetchAll();
+);
 ?>
 <!DOCTYPE html>
 <html lang="en">
